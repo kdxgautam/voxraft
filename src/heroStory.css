@@ -1,0 +1,22 @@
+/* The spoken history advances with the same step as the editable diagram. */
+.bc-hero-story.bc-story-loop{position:relative;width:min(790px,100%);gap:18px}
+.bc-story-loop .bc-hero-utterances{position:relative;height:132px;min-width:0;flex:0 0 330px}
+.bc-story-loop .bc-hero-utterances .bc-story-line{position:absolute;top:88px;left:0;display:flex;align-items:center;gap:10px;margin:0;padding:0;line-height:36px;white-space:nowrap;opacity:0;visibility:hidden;transform:translateY(14px);transition:opacity .45s ease,transform .45s ease}
+.bc-story-loop .bc-hero-utterances .bc-story-line.is-current{opacity:1;visibility:visible;transform:none}
+.bc-story-loop .bc-hero-utterances .bc-story-line.is-previous{opacity:.42;visibility:visible;transform:translateY(-44px)}
+.bc-story-loop .bc-hero-utterances .bc-story-line.is-older{opacity:.2;visibility:visible;transform:translateY(-88px)}
+.bc-story-loop .bc-hero-utterances .bc-story-speaker{flex:none;padding:3px 7px;font:9px/16px Arial,Helvetica,sans-serif;color:#fff;background:#516b50}
+.bc-story-loop .bc-hero-utterances .bc-story-said{display:block;padding:0;border-radius:0;background:transparent;color:inherit;font:inherit;line-height:36px;letter-spacing:inherit;white-space:nowrap}
+.bc-story-loop[data-running=true] .is-current .bc-story-said{animation:bc-story-say .7s steps(20,end) both}
+@keyframes bc-story-say{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0)}}
+.bc-story-loop .bc-hero-paper{width:360px}
+.bc-story-loop .bc-hero-block,.bc-story-loop .bc-story-link,.bc-story-loop .bc-story-edge-label{opacity:0;transform:translateY(12px) scale(.94);transform-box:fill-box;transform-origin:center;transition:opacity .45s ease,transform .55s cubic-bezier(.2,.8,.2,1)}
+.bc-story-loop .bc-hero-block.is-built,.bc-story-loop .bc-story-link.is-built,.bc-story-loop .bc-story-edge-label.is-built{opacity:1;transform:none}
+.bc-story-loop .bc-story-db path,.bc-story-loop .bc-story-db ellipse{transition:fill .55s ease}
+.bc-story-loop .bc-story-edge-label{font:10px Arial,Helvetica,sans-serif;fill:#536579;text-anchor:middle;stroke:none}
+.bc-story-loop[data-running=true] .bc-hero-paper{animation:bc-story-paper-pop 3s ease-out infinite}
+@keyframes bc-story-paper-pop{0%,100%{transform:translateY(0) rotate(-3deg)}12%{transform:translateY(-6px) rotate(-1.5deg)}28%{transform:translateY(0) rotate(-3deg)}}
+.bc-story-pause{position:absolute;bottom:-25px;right:0;display:grid;place-items:center;width:44px;height:44px;border:1px solid #a9c7d1;border-radius:50%;background:#f7fbfc;color:#486b79!important;z-index:1}
+@media(max-width:1000px){.bc-story-loop .bc-hero-utterances{flex-basis:300px}.bc-story-loop .bc-hero-paper{width:330px}}
+@media(max-width:760px){.bc-hero-story.bc-story-loop{gap:16px}.bc-story-loop .bc-hero-utterances{width:min(310px,100%);flex:none;height:132px;font-size:16px}.bc-story-loop .bc-hero-utterances .bc-story-line{display:flex;gap:8px}.bc-story-loop .bc-hero-paper{width:min(320px,90%)}.bc-story-pause{bottom:-27px}}
+@media(prefers-reduced-motion:reduce){.bc-story-loop *{animation:none!important;transition:none!important;clip-path:none!important}}
