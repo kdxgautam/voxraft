@@ -1,0 +1,47 @@
+[
+  {
+    "name": "missing separator between components",
+    "request": {"text": "Create front end API gateway, auth service, order service, and PostgreSQL database."},
+    "expected": {"mode": "llm", "actions": [
+      {"type": "ADD_NODE", "label": "Frontend"},
+      {"type": "ADD_NODE", "label": "API Gateway"},
+      {"type": "ADD_NODE", "label": "Auth Service"},
+      {"type": "ADD_NODE", "label": "Order Service"},
+      {"type": "ADD_NODE", "label": "PostgreSQL Database"}
+    ]}
+  },
+  {
+    "name": "three component creation",
+    "request": {"text": "Create a frontend, a FastAPI backend and a PostgreSQL database"},
+    "expected": {"mode": "llm", "actions": [
+      {"type": "ADD_NODE", "label": "Frontend"},
+      {"type": "ADD_NODE", "label": "FastAPI backend"},
+      {"type": "ADD_NODE", "label": "PostgreSQL database"}
+    ]}
+  },
+  {
+    "name": "correct isolated duplicate deletion",
+    "request": {"text": "Remove the authentication service which isn't connected to any other block.", "nodes": [{"id":"connected","label":"Authentication Service"},{"id":"isolated","label":"Authentication Service"},{"id":"frontend","label":"Frontend"}], "edges": [{"sourceId":"frontend","targetId":"connected"}]},
+    "expected": {"actions": [{"type":"DELETE_NODE","target":"isolated"}]}
+  },
+  {
+    "name": "spatial language",
+    "request": {"text": "Put the frontend before the API gateway.", "nodes": [{"id":"front","label":"Frontend"},{"id":"gate","label":"API Gateway"}]},
+    "expected": {"mode":"llm","actions":[{"type":"MOVE_NODE","target":"front","direction":"left","relativeTo":"gate"}]}
+  },
+  {
+    "name": "multiple connections in order",
+    "request": {"text": "Connect frontend to gateway and gateway to auth service", "nodes": [{"id":"front","label":"Frontend"},{"id":"gate","label":"API Gateway"},{"id":"auth","label":"Auth Service"}]},
+    "expected": {"actions":[{"type":"ADD_EDGE","source":"front","target":"gate"},{"type":"ADD_EDGE","source":"gate","target":"auth"}]}
+  },
+  {
+    "name": "repeated undo",
+    "request": {"text":"undo undo"},
+    "expected": {"actions":[{"type":"UNDO","steps":2}]}
+  },
+  {
+    "name": "arrange diagram",
+    "request": {"text":"Arrange the diagram"},
+    "expected": {"actions":[{"type":"ARRANGE"}]}
+  }
+]
