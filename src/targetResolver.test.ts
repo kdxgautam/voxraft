@@ -198,3 +198,34 @@ describe('planned target resolution',()=>{
     }
   });
 });
+
+describe('architecture connection arrowheads',()=>{
+  it('uses the region default when the planner suggests a line for an ordinary connection',()=>{
+    let scene=execute(emptyScene(),[
+      {type:'SET_DIAGRAM_CONTEXT',diagramType:'mixed'},
+      {type:'ADD_NODE',label:'API Gateway'},
+      {type:'ADD_NODE',label:'Authentication Service'},
+      {type:'CREATE_CONTAINER',name:'Architecture section',targets:['API Gateway','Authentication Service']},
+      {type:'SET_CONTAINER_INTENT',container:'Architecture section',diagramType:'architecture'},
+    ]);
+    const planned=[{type:'ADD_EDGE',source:'API Gateway',target:'Authentication Service',relation:'connection',arrowhead:'none'}];
+    scene=execute(scene,resolvePlannedActions(scene,planned,'अरे यार, connect API Gateway to Authentication Service।',null));
+    expect(scene.edges[0]).toMatchObject({relation:'connection',endArrowhead:'arrow',arrowheadSource:'intent'});
+  });
+
+  it('honors an explicit line and lets an explicit arrow repair that link',()=>{
+    let scene=execute(emptyScene(),[
+      {type:'SET_DIAGRAM_CONTEXT',diagramType:'architecture'},
+      {type:'ADD_NODE',label:'API Gateway'},
+      {type:'ADD_NODE',label:'Authentication Service'},
+    ]);
+    const line=[{type:'ADD_EDGE',source:'API Gateway',target:'Authentication Service',relation:'connection',arrowhead:'arrow'}];
+    scene=execute(scene,resolvePlannedActions(scene,line,'Connect API Gateway to Authentication Service with a line',null));
+    expect(scene.edges[0]).toMatchObject({endArrowhead:null,arrowheadSource:'explicit'});
+    const originalId=scene.edges[0].id;
+    const arrow=[{type:'ADD_EDGE',source:'API Gateway',target:'Authentication Service',relation:'connection',arrowhead:'none'}];
+    scene=execute(scene,resolvePlannedActions(scene,arrow,'Connect API Gateway to Authentication Service with an arrow',null));
+    expect(scene.edges).toHaveLength(1);
+    expect(scene.edges[0]).toMatchObject({id:originalId,endArrowhead:'arrow',arrowheadSource:'explicit'});
+  });
+});

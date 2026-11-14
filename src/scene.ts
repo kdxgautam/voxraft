@@ -232,7 +232,7 @@ function addEdge(draft:Snapshot,source:Node,target:Node,label='',options:{relati
   const kind=options.relation|| (sourceMode==='architecture'?'connection':sourceMode==='hierarchy'?'parent_child':sourceMode==='flowchart'?'sequence':'association');
   const relationSource=options.relationSource||(options.relation?'explicit':'intent');
   const existing=draft.edges.find(e=>e.sourceId===source.id&&e.targetId===target.id);
-  if(existing&&(existing.relation===kind||!['branch','parent_child'].includes(kind)&&relationSource!=='explicit'))return;
+  if(existing&&options.arrowhead===undefined&&(existing.relation===kind||!['branch','parent_child'].includes(kind)&&relationSource!=='explicit'))return;
   if(kind==='branch'||kind==='parent_child'){
     if(kind==='branch'&&(sourceMode!=='mindmap'||targetMode!=='mindmap'||sourceScope?.id!==targetScope?.id))throw new SceneError('Branches must stay within one mind map.');
     const rootId=kind==='branch'?(sourceScope?.rootId||draft.context.rootId):draft.context.rootId;

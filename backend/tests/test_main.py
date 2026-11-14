@@ -327,6 +327,8 @@ def test_agentrouter_planner_uses_completion_text(monkeypatch):
 def test_openai_key_takes_priority_over_agentrouter(monkeypatch):
     monkeypatch.setenv('OPENAI_API_KEY', 'openai-test-key')
     monkeypatch.setenv('AGENTROUTER_API_KEY', 'old-test-key')
+    monkeypatch.delenv('OPENAI_PLANNER_MODEL', raising=False)
+    monkeypatch.setenv('OPENAI_MODEL', 'gpt-4o-mini')
     calls = []
     class Response:
         def raise_for_status(self): pass
@@ -342,7 +344,11 @@ def test_openai_key_takes_priority_over_agentrouter(monkeypatch):
     actions, mode = asyncio.run(llm_plan(PlanRequest(text='Make this green', selected_node_id='node-1')))
     assert (actions, mode) == ([{'type': 'UPDATE_NODE', 'target': 'node-1', 'color': 'green'}], 'llm')
     assert calls[0][0] == 'https://api.openai.com/v1/chat/completions'
-    assert calls[0][1]['json']['model'] == 'gpt-4o-mini'
+    assert calls[0][1]['json']['model'] == 'gpt-5.4-mini'
+    assert calls[0][1]['json']['max_completion_tokens'] == 2200
+    monkeypatch.setenv('OPENAI_PLANNER_MODEL', 'gpt-4o-mini')
+    asyncio.run(llm_plan(PlanRequest(text='Make this green', selected_node_id='node-1')))
+    assert calls[1][1]['json']['model'] == 'gpt-4o-mini'
     assert calls[0][1]['json']['response_format'] == {'type': 'json_schema', 'json_schema': {'name': 'diagram_plan', 'strict': True, 'schema': PLAN_SCHEMA}}
     assert "Speech transcripts may omit commas" in calls[0][1]['json']['messages'][0]['content']
 

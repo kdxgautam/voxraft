@@ -314,7 +314,7 @@ async def generate(request: GenerateRequest, user: dict = Depends(require_user))
         async with client_context as client:
             for attempt in range(2):
                 if openai_key:
-                    response = await client.post(f"{os.getenv('OPENAI_BASE_URL', 'https://api.openai.com/v1').rstrip('/')}/chat/completions", headers={'Authorization': f'Bearer {openai_key}'}, json={'model': os.getenv('OPENAI_MODEL', 'gpt-4o-mini'), 'temperature': 0, 'max_tokens': 2200, 'response_format': {'type': 'json_object'}, 'messages': messages})
+                    response = await client.post(f"{os.getenv('OPENAI_BASE_URL', 'https://api.openai.com/v1').rstrip('/')}/chat/completions", headers={'Authorization': f'Bearer {openai_key}'}, json={'model': os.getenv('OPENAI_GENERATION_MODEL', 'gpt-5.4-mini'), 'temperature': 0, 'max_completion_tokens': 2200, 'response_format': {'type': 'json_object'}, 'messages': messages})
                 elif agent_key:
                     response = await client.post(f"{os.getenv('AGENTROUTER_BASE_URL', 'https://api.agentrouter.to/api/agentic-api').rstrip('/')}/domains/models/capabilities/chat-complete/execute", headers={'Authorization': f'Bearer {agent_key}'}, json={'model': os.getenv('AGENTROUTER_MODEL', 'deepseek-v4-flash'), 'routeKey': 'models.chat.complete.deepseek.mpp', 'provider': 'deepseek', 'allowFallback': False, 'temperature': 0, 'max_tokens': 2200, 'messages': messages})
                 else:
@@ -667,7 +667,7 @@ async def llm_plan_detail(request: PlanRequest) -> tuple[list[dict[str, Any]], s
             for attempt in range(2):
                 if openai_key:
                     openai_base = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
-                    response = await client.post(f"{openai_base}/chat/completions", headers={"Authorization": f"Bearer {openai_key}"}, json={"model": os.getenv("OPENAI_MODEL", "gpt-4o-mini"), "temperature": 0, "max_tokens": 1024, "response_format": {"type": "json_schema", "json_schema": {"name": "diagram_plan", "strict": True, "schema": PLAN_SCHEMA}}, "messages": messages})
+                    response = await client.post(f"{openai_base}/chat/completions", headers={"Authorization": f"Bearer {openai_key}"}, json={"model": os.getenv("OPENAI_PLANNER_MODEL", "gpt-5.4-mini"), "temperature": 0, "max_completion_tokens": 2200, "response_format": {"type": "json_schema", "json_schema": {"name": "diagram_plan", "strict": True, "schema": PLAN_SCHEMA}}, "messages": messages})
                 elif agent_key:
                     agent_base = os.getenv("AGENTROUTER_BASE_URL", "https://api.agentrouter.to/api/agentic-api").rstrip("/")
                     response = await client.post(f"{agent_base}/domains/models/capabilities/chat-complete/execute", headers={"Authorization": f"Bearer {agent_key}"}, json={"model": os.getenv("AGENTROUTER_MODEL", "deepseek-v4-flash"), "routeKey": "models.chat.complete.deepseek.mpp", "provider": "deepseek", "allowFallback": False, "temperature": 0, "max_tokens": 1024, "messages": messages})

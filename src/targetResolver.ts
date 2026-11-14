@@ -190,6 +190,8 @@ export function resolvePlannedActions(scene:Scene,input:unknown,command:string,s
   const explicitlyNamedShape=/\b(?:rectangle|ellipse|oval|diamond|cylinder|decision|condition)\b/i.test(command);
   const explicitlyNamedRole=/^(?:add|create|make)\s+an?\s+(?:note|process|decision|start|end|topic|component|database)(?:\s+(?:node|block))?\s+(?:called|named)\b/i.test(command);
   const explicitlyNamedRelation=/\b(?:parent|child|branch|sequence|dependency|association|related)\b/i.test(command);
+  const requestedArrowhead=/\b(?:with|as|using)\s+(?:an?\s+)?(?:plain\s+|straight\s+)?line\b|\b(?:without|no)\s+(?:an?\s+)?arrow(?:head)?\b/i.test(command)?'none' as const
+    :/\b(?:with|as|using)\s+(?:an?\s+)?arrow(?:head)?\b/i.test(command)?'arrow' as const:undefined;
   // A single group instruction is one translation/style change even if the
   // planner enumerated members; translating each member independently stacks them.
   if(actions.length>1&&['MOVE_NODE','UPDATE_NODE','DELETE_NODE'].includes(actions[0].type)
@@ -224,7 +226,7 @@ export function resolvePlannedActions(scene:Scene,input:unknown,command:string,s
     if(action.type==='ADD_EDGE'||action.type==='INSERT_BETWEEN'){
       const source=action.type==='ADD_EDGE'&&/\b(?:connect|link)\s+(?:the\s+)?this\b/i.test(command)?'this':action.source;
       const target=action.type==='ADD_EDGE'&&/\bto\s+(?:the\s+)?this\b/i.test(command)?'this':action.target;
-      resolved=[{...action,...(action.type==='ADD_EDGE'&&action.relation?{relationSource:action.relationSource|| (explicitlyNamedRelation?'explicit' as const:'intent' as const)}:{}),...(action.type==='INSERT_BETWEEN'?{id:action.id||newId(),...(action.shape?{shapeSource:explicitlyNamedShape?'explicit' as const:'default' as const}:{})}:{}),source:verifiedIds.has(source)?source:resolve(draft,scene,source,command,selectedId,false,created),target:verifiedIds.has(target)?target:resolve(draft,scene,target,command,selectedId,false,created)}];
+      resolved=[{...action,...(action.type==='ADD_EDGE'&&action.relation?{relationSource:action.relationSource|| (explicitlyNamedRelation?'explicit' as const:'intent' as const)}:{}),...(action.type==='ADD_EDGE'?{arrowhead:requestedArrowhead}:{}),...(action.type==='INSERT_BETWEEN'?{id:action.id||newId(),...(action.shape?{shapeSource:explicitlyNamedShape?'explicit' as const:'default' as const}:{})}:{}),source:verifiedIds.has(source)?source:resolve(draft,scene,source,command,selectedId,false,created),target:verifiedIds.has(target)?target:resolve(draft,scene,target,command,selectedId,false,created)}];
     }
     if(action.type==='DELETE_EDGE'||action.type==='REVERSE_EDGE'||action.type==='UPDATE_EDGE'){
       const mentioned=/\b(?:this|that|it|last)\s+(?:arrow|connection|edge)\b/i.test(command);

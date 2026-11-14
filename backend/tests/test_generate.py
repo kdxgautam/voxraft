@@ -91,6 +91,8 @@ def test_product_launch_mindmap_uses_exact_center_and_useful_subtopics(monkeypat
 
 def test_generate_uses_configured_model(monkeypatch):
     monkeypatch.setenv('OPENAI_API_KEY', 'test-key')
+    monkeypatch.delenv('OPENAI_GENERATION_MODEL', raising=False)
+    monkeypatch.setenv('OPENAI_MODEL', 'gpt-4o-mini')
     calls = []
 
     class Response:
@@ -109,6 +111,11 @@ def test_generate_uses_configured_model(monkeypatch):
     assert 'exactly one node for each named component' in calls[0]['messages'][0]['content']
     assert result['diagram_type'] == 'flowchart'
     assert calls[0]['messages'][1]['content'] == 'A process from start to done'
+    assert calls[0]['model'] == 'gpt-5.4-mini'
+    assert calls[0]['max_completion_tokens'] == 2200
+    monkeypatch.setenv('OPENAI_GENERATION_MODEL', 'gpt-4o-mini')
+    asyncio.run(main.generate(main.GenerateRequest(description='A process from start to done', diagram_type='flowchart')))
+    assert calls[1]['model'] == 'gpt-4o-mini'
 
 
 def test_generate_auto_uses_model_chosen_type(monkeypatch):
