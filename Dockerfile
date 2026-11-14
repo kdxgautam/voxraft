@@ -5,7 +5,7 @@ RUN npm ci
 COPY index.html vite.config.ts tsconfig.json ./
 COPY src ./src
 COPY public ./public
-RUN NODE_OPTIONS=--max-old-space-size=768 npm run build
+RUN NODE_OPTIONS=--max-old-space-size=2048 npm run build
 
 FROM python:3.12-slim-bookworm
 ENV PYTHONDONTWRITEBYTECODE=1 \
