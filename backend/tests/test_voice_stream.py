@@ -43,6 +43,7 @@ def test_repeated_undo_without_segment_ids(monkeypatch):
 
 def test_stream_reconnects_and_recovers(monkeypatch):
     monkeypatch.setenv('GNANI_API_KEY','test-key')
+    monkeypatch.setenv('GNANI_LANGUAGE','en-IN')
     class Socket:
         headers={'origin':'http://localhost:5173','host':'localhost:8000'}
         def __init__(self):
@@ -69,12 +70,20 @@ def test_stream_reconnects_and_recovers(monkeypatch):
     asyncio.run(asyncio.wait_for(relay.voice_stream(socket),timeout=5))
     assert [item['type'] for item in socket.messages] == ['reconnecting','ready','completed']
     assert len(calls)==2
-    assert all(stream.options['language_code']=='indic-auto' and stream.options['format']=='transcribe' for stream in calls)
+    assert all(stream.options['language_code']=='en-IN' and stream.options['format']=='transcribe' for stream in calls)
     assert all(stream.options['keywords']==['Payments API','Redis'] for stream in calls)
 
 
 def test_key_terms_drop_invalid_values():
     assert relay.parse_key_terms([' Redis ','Redis','<|bad|>','',4,'Payments API']) == ['Redis','Payments API']
+
+
+def test_language_uses_configured_english_and_has_english_default(monkeypatch):
+    monkeypatch.setenv('GNANI_LANGUAGE', 'en-IN')
+    monkeypatch.setenv('GNANI_LANGUAGE_CODE', 'indic-auto')
+    assert relay.configured_language() == 'en-IN'
+    monkeypatch.delenv('GNANI_LANGUAGE')
+    assert relay.configured_language() == 'en-IN'
 
 
 def test_hosted_voice_origin_is_restricted(monkeypatch):

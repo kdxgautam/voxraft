@@ -20,6 +20,10 @@ router = APIRouter()
 FRAME_BYTES = 1024
 
 
+def configured_language() -> str:
+    return os.getenv("GNANI_LANGUAGE", "en-IN").strip() or "en-IN"
+
+
 def parse_key_terms(value: object) -> list[str]:
     if not isinstance(value, list): return []
     return list(dict.fromkeys(term.strip() for term in value if isinstance(term, str) and 1 < len(term.strip()) <= 64 and '<|' not in term and '|>' not in term))[:40]
@@ -135,7 +139,7 @@ async def voice_stream(websocket: WebSocket, user: dict = Depends(require_ws_use
             model = os.getenv("GNANI_STREAM_MODEL", "prisma-v3.0")
             stream = GnaniSTTStreamClient(
                 api_key=key,
-                language_code=os.getenv("GNANI_LANGUAGE_CODE", "indic-auto" if model == "prisma-v3.0" else "en-IN"),
+                language_code=configured_language(),
                 model=model,
                 keywords=terms if model == "prisma-v3.0" else None,
                 format="transcribe",

@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from review_agent import ReviewRequest, run_review
 from layout_agent import LayoutRequest, run_layout_critique
 from visual_agent import VisualRequest, run_visual_design
-from voice_stream import parse_key_terms, router as voice_router
+from voice_stream import configured_language, parse_key_terms, router as voice_router
 from canvas_context import canvas_facts
 from scope_context import scopes
 from intent_agent import brainstorming_actions, explicit_relation_action, explicit_role_action, explicit_start, flowchart_actions, hierarchy_actions, mindmap_actions, suggest
@@ -845,7 +845,7 @@ async def transcribe(audio: UploadFile = File(...), key_terms: str | None = Form
             raise subprocess.CalledProcessError(process.returncode, "ffmpeg", stderr=errors)
         if not converted: raise ValueError("Audio conversion produced no data")
         model = os.getenv("GNANI_MODEL", "prisma-v3.0")
-        language = os.getenv("GNANI_LANGUAGE_CODE", "indic-auto" if model == "prisma-v3.0" else "en-IN")
+        language = configured_language()
         payload = {"model": model, "language_code": language, "format": "transcribe"}
         if model != "prisma-v3.0": payload["preferred_language"] = language
         if model == "prisma-v3.0" and isinstance(key_terms, str):

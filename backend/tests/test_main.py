@@ -251,7 +251,7 @@ def test_rest_transcription_auto_detects_language(monkeypatch):
     monkeypatch.setattr('main.httpx.AsyncClient', Client)
     result = asyncio.run(transcribe(UploadFile(file=io.BytesIO(b'audio'), filename='test.webm'), '["Payments API","Redis"]'))
     assert result['transcript'] == 'Add a gateway'
-    assert calls[0]['language_code'] == 'indic-auto'
+    assert calls[0]['language_code'] == 'en-IN'
     assert 'preferred_language' not in calls[0]
     assert calls[0]['keywords'] == '["Payments API", "Redis"]'
 
