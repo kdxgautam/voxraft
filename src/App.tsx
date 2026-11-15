@@ -430,9 +430,17 @@ export default function App({projectId,storageId,projectName,initialProject,onPe
       onStatus:setVoice,
       onTranscript:setLatest,
       onPartialTranscript:setLiveTranscript,
-      onExecute:async(value,signal)=>{await applyCommand(value,signal);},
+      onExecute:async(value,signal,timing)=>{
+        const before=sceneRef.current,commandStarted=performance.now();
+        await applyCommand(value,signal);
+        if(!timing||signal.aborted||sceneRef.current===before)return;
+        requestAnimationFrame(()=>requestAnimationFrame(()=>{
+          if(signal.aborted)return;
+          const painted=performance.now();
+          log(`Voice ${timing.mode} · total ~${Math.round(painted-timing.speechStart)} ms · speech ${Math.round(timing.speechEnd-timing.speechStart)} ms · recognition ${Math.round(timing.transcriptAt-timing.speechEnd)} ms · queue ${Math.round(commandStarted-timing.transcriptAt)} ms · command + view ~${Math.round(painted-commandStarted)} ms`,'info');
+        }));
+      },
       onError:detail=>{setMessage(detail);log(detail,'error');},
-      onSttTiming:ms=>{if(ms<30000)log(`Speech to transcript ~${Math.round(ms)} ms`,'info');},
       getKeyTerms:()=>keyTerms(sceneRef.current)
     });
     voiceSession.current=session;

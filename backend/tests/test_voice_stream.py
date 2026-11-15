@@ -66,8 +66,11 @@ def test_stream_reconnects_and_recovers(monkeypatch):
             yield transcript()
             await asyncio.sleep(60)
     monkeypatch.setattr(relay,'GnaniSTTStreamClient',Stream)
+    monkeypatch.setattr(relay,'check_rate_limit',lambda *args: None)
+    monkeypatch.setattr(relay,'reserve_voice',lambda *args: (0,'test-lease'))
+    monkeypatch.setattr(relay,'release_voice',lambda *args: None)
     socket=Socket()
-    asyncio.run(asyncio.wait_for(relay.voice_stream(socket),timeout=5))
+    asyncio.run(asyncio.wait_for(relay.voice_stream(socket,{'id':'test'}),timeout=5))
     assert [item['type'] for item in socket.messages] == ['reconnecting','ready','completed']
     assert len(calls)==2
     assert all(stream.options['language_code']=='en-IN' and stream.options['format']=='transcribe' for stream in calls)

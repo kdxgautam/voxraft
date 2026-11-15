@@ -6,6 +6,7 @@ import {ProjectDashboard,type ProjectSummary} from './ProjectDashboard';
 import './site.css';
 import './dashboard.css';
 import HomePage from './HomePage';
+import {clearAccountStorage} from './accountStorage';
 
 const Editor=lazy(()=>import('./App'));
 const SharedDiagram=lazy(()=>import('./SharedDiagram'));
@@ -105,7 +106,7 @@ export default function SiteApp(){
     await loadList(0);
   };
   const signOut=async()=>{await saveQueue.current.catch(()=>{});
-    try{await request('/api/auth/sign-out','POST');setUser(null);setProject(null);setLoadedId(null);navigate('/');}
+    try{await request('/api/auth/sign-out','POST');if(user)try{clearAccountStorage(localStorage,user.id);}catch{/* The server session is already closed. */}setUser(null);setProject(null);setLoadedId(null);navigate('/');}
     catch(cause){setError(cause instanceof Error?cause.message:'Could not sign out.');}
   };
   const importLocalDraft=async()=>{

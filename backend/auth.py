@@ -90,6 +90,17 @@ def init_db() -> None:
               user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
               token TEXT NOT NULL UNIQUE, created_at INTEGER NOT NULL
             )
+        ''', '''
+            CREATE TABLE IF NOT EXISTS request_limits (
+              key TEXT PRIMARY KEY, window_start INTEGER NOT NULL, count INTEGER NOT NULL
+            )
+        ''', '''
+            CREATE INDEX IF NOT EXISTS request_limits_window ON request_limits(window_start)
+        ''', '''
+            CREATE TABLE IF NOT EXISTS voice_sessions (
+              user_id TEXT NOT NULL, slot INTEGER NOT NULL, token TEXT NOT NULL, expires_at INTEGER NOT NULL,
+              PRIMARY KEY(user_id, slot)
+            )
         '''):
             execute(db, query)
         # The original account diagram keeps a stable ID. Re-running startup never duplicates it.
@@ -106,6 +117,37 @@ def normalized_email(value: str) -> str:
     if len(email) > 254 or not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+', email):
         raise HTTPException(422, 'Enter a valid email address.')
     return email
+
+
+def check_rate_limit(key: str, limit: int, seconds: int) -> None:
+    now = int(time.time())
+    with closing(connect()) as db, db:
+        execute(db, 'DELETE FROM request_limits WHERE window_start < ?', (now - 3600,))
+        execute(db, '''INSERT INTO request_limits (key, window_start, count) VALUES (?, ?, 1)
+                      ON CONFLICT(key) DO UPDATE SET
+                      count = CASE WHEN request_limits.window_start <= ? THEN 1 ELSE request_limits.count + 1 END,
+                      window_start = CASE WHEN request_limits.window_start <= ? THEN excluded.window_start ELSE request_limits.window_start END''',
+                (key, now, now - seconds, now - seconds))
+        count = execute(db, 'SELECT count FROM request_limits WHERE key = ?', (key,)).fetchone()['count']
+    if count > limit:
+        raise HTTPException(429, 'Too many requests. Please try again later.')
+
+
+def reserve_voice(user_id: str) -> tuple[int, str] | None:
+    now, token = int(time.time()), secrets.token_urlsafe(16)
+    with closing(connect()) as db, db:
+        for slot in range(2):
+            result = execute(db, '''INSERT INTO voice_sessions (user_id, slot, token, expires_at) VALUES (?, ?, ?, ?)
+                                ON CONFLICT(user_id, slot) DO UPDATE SET token = excluded.token, expires_at = excluded.expires_at
+                                WHERE voice_sessions.expires_at < ?''', (user_id, slot, token, now + 300, now))
+            if result.rowcount:
+                return slot, token
+    return None
+
+
+def release_voice(user_id: str, slot: int, token: str) -> None:
+    with closing(connect()) as db, db:
+        execute(db, 'DELETE FROM voice_sessions WHERE user_id = ? AND slot = ? AND token = ?', (user_id, slot, token))
 
 
 class Credentials(BaseModel):
@@ -170,6 +212,8 @@ def require_ws_user(websocket: WebSocket) -> dict[str, str]:
 @router.post('/auth/sign-up', status_code=201)
 def sign_up(credentials: Credentials, request: Request, response: Response):
     email = normalized_email(credentials.email)
+    check_rate_limit(f'sign-up:{request.client.host if request.client else "unknown"}', 5, 3600)
+    check_rate_limit('sign-up:global', 100, 3600)
     if len(credentials.password) < 12:
         raise HTTPException(422, 'Use a password with at least 12 characters.')
     user_id = uuid.uuid4().hex
@@ -186,6 +230,9 @@ def sign_up(credentials: Credentials, request: Request, response: Response):
 @router.post('/auth/sign-in')
 def sign_in(credentials: Credentials, request: Request, response: Response):
     email = normalized_email(credentials.email)
+    check_rate_limit(f'sign-in-ip:{request.client.host if request.client else "unknown"}', 30, 300)
+    check_rate_limit(f'sign-in-account:{email}', 10, 300)
+    check_rate_limit('sign-in:global', 300, 300)
     with closing(connect()) as db:
         row = execute(db, 'SELECT * FROM users WHERE email = ?', (email,)).fetchone()
     if not _passwords.verify(credentials.password, row['password_hash'] if row else _dummy_hash) or not row:
@@ -301,8 +348,11 @@ def create_project(body: dict, user: dict[str, str] = Depends(require_user)):
         raise HTTPException(422, 'Enter a diagram name up to 100 characters.')
     project_id, updated = uuid.uuid4().hex, int(time.time())
     with closing(connect()) as db, db:
-        execute(db, 'INSERT INTO diagram_projects (id, user_id, name, body, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
-                (project_id, user['id'], name.strip(), encoded, updated, updated))
+        result = execute(db, '''INSERT INTO diagram_projects (id, user_id, name, body, created_at, updated_at)
+                             SELECT ?, ?, ?, ?, ?, ? WHERE (SELECT count(*) FROM diagram_projects WHERE user_id = ?) < 50''',
+                         (project_id, user['id'], name.strip(), encoded, updated, updated, user['id']))
+        if not result.rowcount:
+            raise HTTPException(429, 'Diagram limit reached. Delete a diagram before creating another.')
     return {'id': project_id, 'name': name.strip(), 'updated_at': updated}
 
 

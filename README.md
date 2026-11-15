@@ -1,6 +1,22 @@
 # Voxraft
 
-Voxraft opens on a public home page. Create an account at **Sign up** with an email and a password of at least 12 characters. Sign-in opens a dashboard of your private diagrams. Choose **New canvas** on the dashboard and press **Start speaking** in the editor. Say “Create a diagram showing how a refund moves from request to resolution”; the AI chooses the type. **Add by voice** creates another typed region on the same canvas, so a flowchart, mind map, and architecture diagram can coexist. Text commands remain available in the dock. Each region keeps its own shape and connection rules. **Account** lets you change your password and sign out. Each diagram autosaves to the backend and keeps its own browser recovery copy for connection failures. Canvases with no visible shapes, connections, or containers are discarded when the dashboard loads; diagrams with content stay saved. An older local draft can be imported as a separate diagram after signing in. Local development uses SQLite; set `DATABASE_URL` to use PostgreSQL for a deployed app. Set a stable `AUTH_SECRET_KEY` of at least 32 characters in production.
+**Submission pitch:** [One-page PDF](output/pdf/voxraft-solution-pitch.pdf) · [Accessible text version](docs/solution-pitch.md)
+
+## Solution pitch
+
+**Explain a system aloud. Voxraft builds an editable diagram as you speak.**
+
+**Problem.** Developers and students pause their explanation to draw boxes, arrows, and flows. During a discussion, the diagram quickly falls behind the idea.
+
+**Solution.** Voxraft turns spoken instructions into incremental edits on an Excalidraw canvas. Say “Create a frontend, API gateway, and PostgreSQL database,” then connect them, move a block, correct a connection, or undo. The same canvas can hold Architecture, Flowchart, Mind map, Hierarchy, and Brainstorming regions. Users can still draw manually; later voice commands work with the current diagram.
+
+**How it works.** Gnani Prisma transcribes live speech through a FastAPI WebSocket relay, with REST transcription as a fallback. A local parser handles clear edits quickly; a configured AI planner interprets complex instructions in the context of the current scene. Voxraft validates the proposed actions, resolves references to existing components, and commits complete edits with stable IDs and undo history. Ambiguous references prompt a clarification. Provider credentials stay on the server.
+
+**Result and scope.** Private diagrams autosave to an account and can be exported as editable Excalidraw files or shared through a revocable read-only link. The current voice experience is in English. Local evaluation passed all seven saved planner replay cases and a live microphone trial confirmed multi-step editing; [measured results and limits](docs/evaluation-2026-11-15.md) are documented separately.
+
+## Product guide
+
+Voxraft opens on a public home page. Create an account at **Sign up** with an email and a password of at least 12 characters. Sign-in opens a dashboard of your private diagrams. Choose **New canvas** on the dashboard and press **Start speaking** in the editor. Say “Create a diagram showing how a refund moves from request to resolution”; the AI chooses the type. **Add by voice** creates another typed region on the same canvas, so a flowchart, mind map, and architecture diagram can coexist. Text commands remain available in the dock. Each region keeps its own shape and connection rules without a visible boundary; containers appear on the canvas only when you create them. **Account** lets you change your password and sign out. Each diagram autosaves to the backend and keeps its own browser recovery copy for connection failures. Canvases with no visible shapes, connections, or containers are discarded when the dashboard loads; diagrams with content stay saved. An older local draft can be imported as a separate diagram after signing in. Local development uses SQLite; set `DATABASE_URL` to use PostgreSQL for a deployed app. Set a stable `AUTH_SECRET_KEY` of at least 32 characters in production.
 
 The **Diagram decisions** section holds up to eight short notes that you explicitly save. You can also say **“Remember that PostgreSQL database already has failover outside this diagram”** or **“Forget that PostgreSQL database already has failover outside this diagram.”** Notes are saved with the scene, included in undo/redo and project exports, and passed to the planner and review agents as context. A named failover decision suppresses that database's repeated replica hint; a vague note such as “managed externally” does not. **Clear** retains decisions; **New diagram** creates a separate blank project.
 
@@ -18,9 +34,9 @@ On an empty canvas, describe an idea in **Generate** and choose Flowchart, Mind 
 
 Built for developers and students who want to explain a system out loud while building its diagram. Gnani Prisma handles speech recognition; validated actions keep the canvas editable across successive instructions.
 
-- [One-page solution pitch (PDF)](output/pdf/bolcanvas-solution-pitch.pdf) · [Text version](docs/solution-pitch.md)
+- [One-page solution pitch (PDF)](output/pdf/voxraft-solution-pitch.pdf) · [Text version](docs/solution-pitch.md)
 - [Hackathon submission text, 2–3 minute demo script, and interview preparation](docs/submission.md)
-- [Measured evaluation report](docs/evaluation-2026-11-11.md)
+- [Measured evaluation report](docs/evaluation-2026-11-15.md)
 - [Agent memory and orchestration design](docs/agent-memory.md)
 - [Render deployment and production checks](docs/deployment.md)
 
@@ -94,6 +110,6 @@ cd backend && uv run pytest -q
 
 If backend tests stall at `TestClient` startup in a restricted execution sandbox, run them in a normal local terminal or with sandbox permission for local sockets. The sandbox can block AnyIO's cross-thread event-loop wakeup even without application code. This is an execution-environment limitation, not a reason to disable the tests or change the server.
 
-Tests cover successive commands, ordering, silence, duplicate completed events, partial transcripts, brief pauses, stop cleanup, WebSocket reconnect, generation validation, image file recovery, and share revocation. A previous live relay test sent a prerecorded speech clip through the FastAPI WebSocket to Gnani Prisma v3 and received two completed English utterances. A physical microphone check of the automatic language detection setting is still needed on localhost or HTTPS. When Gnani's opening handshake times out, the session uses automatic REST fallback.
+Tests cover successive commands, ordering, silence, duplicate completed events, partial transcripts, brief pauses, stop cleanup, WebSocket reconnect, generation validation, image file recovery, and share revocation. A previous live relay test sent a prerecorded speech clip through the FastAPI WebSocket to Gnani Prisma v3 and received two completed English utterances. Local microphone trials and their timing limits are recorded in the evaluation report; the deployed HTTPS microphone path still needs checking. When Gnani's opening handshake times out, the session uses automatic REST fallback.
 
 Run the saved planner replay cases with `cd backend && uv run --env-file .env python replay.py`. The suite checks real commands against the configured LLM, so it uses the provider API and may incur charges. Use `--case "spatial language"` to run one case. The ordinary unit tests validate the replay comparator without calling the provider.

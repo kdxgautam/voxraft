@@ -9,7 +9,7 @@ const edgeSchema=z.object({id:z.string().min(1),sourceId:z.string().min(1),targe
 const diagramTypeSchema=z.enum(['architecture','mindmap','hierarchy','brainstorming','flowchart','mixed']);
 const contextSchema=z.object({type:diagramTypeSchema.nullable(),purpose:z.string().max(240),source:z.enum(['explicit','confirmed','legacy']).optional(),rootId:z.string().optional(),notes:z.array(z.string().min(1).max(200)).max(8).optional()});
 const extraSchema=z.object({id:z.string().min(1),type:z.string().min(1)}).catchall(z.unknown());
-const snapshotSchema=z.object({nodes:z.array(nodeSchema).max(500),edges:z.array(edgeSchema).max(1000),recentIds:z.array(z.string()).max(5),context:contextSchema,recentEdgeId:z.string().nullable().optional(),groups:z.array(z.object({name:z.string().min(1),nodeIds:z.array(z.string()).max(500)})).max(100).optional(),containers:z.array(z.object({id:z.string().min(1),name:z.string().min(1),nodeIds:z.array(z.string()).max(500),parentId:z.string().optional(),collapsed:z.boolean().optional(),color:z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),intentType:z.enum(['architecture','mindmap','hierarchy','brainstorming','flowchart']).optional(),rootId:z.string().optional()})).max(100).optional(),extras:z.array(extraSchema).max(1000).optional()});
+const snapshotSchema=z.object({nodes:z.array(nodeSchema).max(500),edges:z.array(edgeSchema).max(1000),recentIds:z.array(z.string()).max(5),context:contextSchema,recentEdgeId:z.string().nullable().optional(),groups:z.array(z.object({name:z.string().min(1),nodeIds:z.array(z.string()).max(500)})).max(100).optional(),containers:z.array(z.object({id:z.string().min(1),name:z.string().min(1),nodeIds:z.array(z.string()).max(500),parentId:z.string().optional(),collapsed:z.boolean().optional(),implicit:z.boolean().optional(),color:z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),intentType:z.enum(['architecture','mindmap','hierarchy','brainstorming','flowchart']).optional(),rootId:z.string().optional()})).max(100).optional(),extras:z.array(extraSchema).max(1000).optional()});
 const fileSchema=z.object({id:z.string().min(1),mimeType:z.string().min(1),dataURL:z.string().startsWith('data:').max(2_000_000),created:z.number().finite(),lastRetrieved:z.number().finite().optional(),version:z.number().finite().optional()});
 const sceneSchema=snapshotSchema.extend({past:z.array(snapshotSchema).max(50),future:z.array(snapshotSchema).max(50)});
 const projectSchema=z.object({format:z.literal('bolcanvas-project'),version:z.union([z.literal(1),z.literal(2)]),scene:sceneSchema,logs:z.array(logSchema).max(100),latest:z.string(),files:z.record(fileSchema).optional()});
@@ -41,10 +41,13 @@ function checkSnapshot(snapshot:Snapshot){
 }
 export function readProject(json:string):{scene:Scene;logs:Log[];latest:string;files:ProjectFiles}{
   const raw=JSON.parse(json);
+  // shortcut: legacy auto names can match a user-named container; remove this migration once old projects are upgraded.
+  const generatedNames:Record<string,RegExp>={architecture:/^(?:System architecture \d+|Architecture section(?: \d+)?)$/,flowchart:/^Flowchart (?:\d+|section(?: \d+)?)$/,mindmap:/^(?:Mind map \d+|Mindmap section(?: \d+)?)$/,hierarchy:/^(?:Org chart \d+|Hierarchy section(?: \d+)?)$/,brainstorming:/^(?:Ideas \d+|Brainstorming section(?: \d+)?)$/};
   // Older projects could accumulate more than five recent IDs after moves.
   for(const snapshot of [raw?.scene,...(raw?.scene?.past||[]),...(raw?.scene?.future||[])])
     if(snapshot&&Array.isArray(snapshot.recentIds)){
       snapshot.recentIds=snapshot.recentIds.slice(0,5);
+      for(const container of snapshot.containers||[])if(!('implicit' in container)&&!container.parentId&&generatedNames[container.intentType]?.test(container.name))container.implicit=true;
       snapshot.context??={type:(snapshot.nodes?.length||snapshot.edges?.length)?'architecture':null,purpose:'',...((snapshot.nodes?.length||snapshot.edges?.length)?{source:'legacy'}:{})};
       for(const node of snapshot.nodes||[])if(node.role&&!node.roleSource)node.roleSource='legacy';
       for(const edge of snapshot.edges||[]){

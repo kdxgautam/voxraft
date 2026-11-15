@@ -1,8 +1,23 @@
 import { describe,expect,it } from 'vitest';
 import { clearScene,emptyScene,execute } from './scene';
 import { readProject,readSavedScene,writeProject } from './project';
+import { appendGeneratedDiagram } from './generatedDiagram';
+import { containerView } from './containerView';
 
 describe('project recovery',()=>{
+  it('hides the generated frame in an older saved project',()=>{
+    const scene=appendGeneratedDiagram(emptyScene(),[{type:'ADD_NODE',label:'Web App'},{type:'ADD_NODE',label:'API Gateway'}],'architecture','Online store');
+    const legacy=JSON.parse(writeProject(scene,[],''));
+    delete legacy.scene.containers[0].implicit;
+    const restored=readProject(JSON.stringify(legacy)).scene;
+    expect(restored.containers?.[0].implicit).toBe(true);
+    expect(containerView(restored).frames).toHaveLength(0);
+    const typed=execute(emptyScene(),[{type:'SET_DIAGRAM_CONTEXT',diagramType:'architecture'},{type:'ADD_NODE',label:'API'}]);
+    const section=execute(typed,[{type:'SET_DIAGRAM_CONTEXT',diagramType:'mixed'}]);
+    const oldSection=JSON.parse(writeProject(section,[],''));
+    delete oldSection.scene.containers[0].implicit;
+    expect(readProject(JSON.stringify(oldSection)).scene.containers?.[0].implicit).toBe(true);
+  });
   it('preserves embedded canvas images with the project',()=>{
     const files={image1:{id:'image1',mimeType:'image/png',dataURL:'data:image/png;base64,iVBORw0KGgo=',created:1}};
     expect(readProject(writeProject(emptyScene(),[],'',files)).files).toEqual(files);

@@ -14,7 +14,8 @@ from gnani.stt import (
     StreamProcessingEvent,
     StreamTranscriptEvent,
 )
-from auth import require_ws_user
+from auth import check_rate_limit, release_voice, require_ws_user, reserve_voice
+from fastapi import HTTPException
 
 router = APIRouter()
 FRAME_BYTES = 1024
@@ -110,10 +111,25 @@ async def voice_stream(websocket: WebSocket, user: dict = Depends(require_ws_use
         await websocket.close(code=1008)
         return
     await websocket.accept()
+    try:
+        check_rate_limit(f'voice-start:{user["id"]}', 10, 3600)
+        check_rate_limit('voice-start:global', 60, 3600)
+    except HTTPException:
+        await websocket.send_json({"type": "limit", "message": "Voice session limit reached. Try again later."})
+        await websocket.close()
+        return
+    reservation = reserve_voice(user['id'])
+    if reservation is None:
+        await websocket.send_json({"type": "limit", "message": "Two voice sessions are already active for this account."})
+        await websocket.close()
+        return
+    slot, lease_token = reservation
+    deadline = time.monotonic() + 300
     key = os.getenv("GNANI_API_KEY", "")
     if not key:
         await websocket.send_json({"type": "fallback", "message": "GNANI_API_KEY is missing."})
         await websocket.close()
+        release_voice(user['id'], slot, lease_token)
         return
     try:
         first = await asyncio.wait_for(websocket.receive(), timeout=2)
@@ -121,6 +137,7 @@ async def voice_stream(websocket: WebSocket, user: dict = Depends(require_ws_use
         first = {}
     if first.get("type") == "websocket.disconnect" or first.get("text") == "stop":
         await websocket.close()
+        release_voice(user['id'], slot, lease_token)
         return
     try:
         config = json.loads(first.get("text") or "{}")
@@ -135,7 +152,7 @@ async def voice_stream(websocket: WebSocket, user: dict = Depends(require_ws_use
     reader = asyncio.create_task(read_browser(websocket, frames, stopped))
     attempts = 0
     try:
-        while not stopped.is_set():
+        while not stopped.is_set() and time.monotonic() < deadline:
             model = os.getenv("GNANI_STREAM_MODEL", "prisma-v3.0")
             stream = GnaniSTTStreamClient(
                 api_key=key,
@@ -148,7 +165,7 @@ async def voice_stream(websocket: WebSocket, user: dict = Depends(require_ws_use
             sender = events = None
             connected = asyncio.create_task(stream.connect())
             try:
-                done, _ = await asyncio.wait({connected, reader}, timeout=12, return_when=asyncio.FIRST_COMPLETED)
+                done, _ = await asyncio.wait({connected, reader}, timeout=min(12, max(0, deadline-time.monotonic())), return_when=asyncio.FIRST_COMPLETED)
                 if reader in done:
                     break
                 if connected not in done:
@@ -161,7 +178,9 @@ async def voice_stream(websocket: WebSocket, user: dict = Depends(require_ws_use
                 await websocket.send_json({"type": "ready", "sampleRate": 16000, "frameBytes": FRAME_BYTES})
                 sender = asyncio.create_task(send_audio(stream, frames))
                 events = asyncio.create_task(forward_events(stream, websocket, deduper, f"{session_id}-{generation}-"))
-                done, _ = await asyncio.wait({reader, sender, events}, return_when=asyncio.FIRST_COMPLETED)
+                done, _ = await asyncio.wait({reader, sender, events}, timeout=max(0, deadline-time.monotonic()), return_when=asyncio.FIRST_COMPLETED)
+                if not done:
+                    break
                 if reader in done:
                     break
                 for task in done:
@@ -189,6 +208,7 @@ async def voice_stream(websocket: WebSocket, user: dict = Depends(require_ws_use
                             pass
                 await stream.close()
     finally:
+        release_voice(user['id'], slot, lease_token)
         stopped.set()
         if not reader.done():
             reader.cancel()

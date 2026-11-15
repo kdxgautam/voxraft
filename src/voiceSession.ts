@@ -1,13 +1,14 @@
-import {RestVad,UtteranceQueue} from './voiceLogic';
+import {RestVad,UtteranceQueue,type UtteranceTiming} from './voiceLogic';
 
 export type VoicePhase='IDLE'|'CONNECTING'|'LISTENING'|'SPEECH_DETECTED'|'TRANSCRIBING'|'EXECUTING'|'ERROR';
 export type VoiceMode='stream'|'rest';
 export type VoiceStatus={phase:VoicePhase;mode:VoiceMode;detail:string;active:boolean};
-type Callbacks={onStatus:(status:VoiceStatus)=>void;onTranscript:(text:string)=>void;onPartialTranscript?:(text:string)=>void;onExecute:(text:string,signal:AbortSignal)=>Promise<void>;onError:(message:string)=>void;getKeyTerms?:()=>string[];onSttTiming?:(ms:number)=>void};
+type Callbacks={onStatus:(status:VoiceStatus)=>void;onTranscript:(text:string)=>void;onPartialTranscript?:(text:string)=>void;onExecute:(text:string,signal:AbortSignal,timing?:UtteranceTiming)=>Promise<void>;onError:(message:string)=>void;getKeyTerms?:()=>string[]};
 
 export class VoiceSession {
   // The relay can spend up to 12 seconds connecting to Gnani after it receives config.
   private static readonly READY_TIMEOUT_MS=16000;
+  private static readonly FRAGMENT_WAIT_MS=4000;
   private active=false;
   private stream:MediaStream|null=null;
   private context:AudioContext|null=null;
@@ -22,6 +23,9 @@ export class VoiceSession {
   private mode:VoiceMode='stream';
   private detail='';
   private lastLoud=0;
+  private speechStartedAt:number|null=null;
+  private pendingFragment:{text:string;timing?:UtteranceTiming}|null=null;
+  private fragmentTimer:number|undefined;
   private executing=false;
   private transcribing=false;
   private queue:UtteranceQueue;
@@ -37,7 +41,7 @@ export class VoiceSession {
   private bargeFrames:ArrayBuffer[]=[];
   private speechTimer:number|undefined;
   constructor(private callbacks:Callbacks){
-    this.queue=new UtteranceQueue((text,signal)=>callbacks.onExecute(text,signal),running=>{this.executing=running;this.refreshPhase();},error=>callbacks.onError(error instanceof Error?error.message:String(error)));
+    this.queue=new UtteranceQueue((text,signal,timing)=>callbacks.onExecute(text,signal,timing),running=>{this.executing=running;this.refreshPhase();},error=>callbacks.onError(error instanceof Error?error.message:String(error)));
     this.vad=new RestVad(()=>this.beginRestRecording(),valid=>this.endRestRecording(valid));
   }
   private emit(phase:VoicePhase,detail=this.detail){
@@ -48,6 +52,7 @@ export class VoiceSession {
   private refreshPhase(){
     if(!this.active)return;
     if(this.executing)this.emit('EXECUTING',this.mode==='rest'?'Applying queued command · REST fallback':'Applying queued command');
+    else if(this.pendingFragment)this.emit('TRANSCRIBING','Waiting for the rest of your instruction…');
     else if(this.transcribing)this.emit('TRANSCRIBING',this.mode==='rest'?'Transcribing · REST fallback':'Gnani is transcribing');
     else if(this.mode==='stream'&&!this.ready)this.emit('CONNECTING','Connecting to Gnani… Start speaking when Listening appears.');
     else if(performance.now()-this.lastLoud<550)this.emit('SPEECH_DETECTED',this.mode==='rest'?'Speech detected · REST fallback':'Speech detected');
@@ -100,7 +105,7 @@ export class VoiceSession {
       let data:Record<string,unknown>;
       try{data=JSON.parse(event.data);}catch{return;}
       if(data.type==='ready'){
-        window.clearTimeout(this.readyTimer);this.ready=true;this.reconnects=0;this.transcribing=false;this.lastLoud=0;this.refreshPhase();
+        window.clearTimeout(this.readyTimer);this.ready=true;this.reconnects=0;this.transcribing=false;this.speechStartedAt=null;this.lastLoud=0;this.refreshPhase();
       }else if(data.type==='transcribing'){
         this.transcribing=true;this.refreshPhase();
       }else if(data.type==='partial'){
@@ -109,10 +114,9 @@ export class VoiceSession {
         this.transcribing=false;
         this.callbacks.onPartialTranscript?.('');
         const text=String(data.text||'').trim();
-        if(text&&this.queue.push({id:String(data.id||''),text})){
-          if(this.lastLoud)this.callbacks.onSttTiming?.(performance.now()-this.lastLoud);
-          this.callbacks.onTranscript(text);
-        }
+        const timing=this.completedTiming(this.speechStartedAt,this.lastLoud,'stream');
+        this.speechStartedAt=null;this.lastLoud=0;
+        this.acceptTranscript(String(data.id||''),text,timing);
         this.refreshPhase();
       }else if(data.type==='listening'){
         this.transcribing=false;this.refreshPhase();
@@ -122,6 +126,9 @@ export class VoiceSession {
         this.readyTimer=window.setTimeout(()=>this.switchToRest('Realtime STT could not reconnect.'),VoiceSession.READY_TIMEOUT_MS);
       }else if(data.type==='fallback'){
         this.switchToRest(String(data.message||'Realtime STT unavailable.'));
+      }else if(data.type==='limit'){
+        this.callbacks.onError(String(data.message||'Voice session limit reached.'));
+        this.stop();
       }
     };
     socket.onclose=()=>{if(this.active&&this.mode==='stream'&&this.socket===socket)this.reconnectSocket('Voice relay disconnected.');};
@@ -143,7 +150,42 @@ export class VoiceSession {
     if(!this.active||this.mode==='rest')return;
     this.mode='rest';this.ready=false;window.clearTimeout(this.readyTimer);window.clearTimeout(this.reconnectTimer);
     const socket=this.socket;this.socket=null;if(socket&&socket.readyState<2)socket.close();
-    this.transcribing=false;this.vad.reset();this.callbacks.onError(`${reason} Using automatic REST transcription.`);this.refreshPhase();
+    this.transcribing=false;this.speechStartedAt=null;this.lastLoud=0;this.vad.reset();this.callbacks.onError(`${reason} Using automatic REST transcription.`);this.refreshPhase();
+  }
+  private completedTiming(start:number|null,end:number,mode:VoiceMode):UtteranceTiming|undefined{
+    const transcriptAt=performance.now();
+    if(start===null||end<start||transcriptAt-start>30000)return undefined;
+    return {speechStart:start,speechEnd:end,transcriptAt,mode};
+  }
+  private acceptTranscript(id:string,received:string,timing?:UtteranceTiming){
+    if(!received)return;
+    let text=received;
+    if(this.pendingFragment){
+      window.clearTimeout(this.fragmentTimer);
+      const previous=this.pendingFragment;
+      this.pendingFragment=null;
+      if(/^(?:please\s+)?(?:add|create|make|connect|link|move|put|place|delete|remove|rename|undo|redo|clear|arrange|generate|no|actually)\b/i.test(received)){
+        this.callbacks.onError(`I heard only “${previous.text}”. Please repeat that instruction.`);
+      }else{
+        text=`${previous.text} ${received}`;
+        if(previous.timing&&timing)timing={...timing,speechStart:previous.timing.speechStart};
+        else timing=previous.timing||timing;
+      }
+    }
+    if(/^(?:(?:please\s+)?(?:add|create|make|connect|link|move|put|place|delete|remove|rename|color|colour)(?:\s+(?:the|a|an|this|that|my))?|.*\b(?:to|above|below|before|after|under|and|with|of))$/i.test(text)){
+      this.pendingFragment={text,timing};
+      this.callbacks.onPartialTranscript?.(text);
+      this.emit('TRANSCRIBING','Waiting for the rest of your instruction…');
+      this.fragmentTimer=window.setTimeout(()=>{
+        if(this.pendingFragment?.text!==text)return;
+        this.pendingFragment=null;this.callbacks.onPartialTranscript?.('');
+        this.callbacks.onError(`I heard only “${text}”. Please repeat the full instruction.`);
+        this.refreshPhase();
+      },VoiceSession.FRAGMENT_WAIT_MS);
+      return;
+    }
+    this.callbacks.onPartialTranscript?.('');
+    if(this.queue.push({id,text,timing}))this.callbacks.onTranscript(text);
   }
   private onAudio(data:{pcm?:ArrayBuffer;level?:number}){
     if(!this.active||!data.pcm||data.pcm.byteLength!==1024)return;
@@ -156,9 +198,11 @@ export class VoiceSession {
       if(this.mode==='stream'&&this.ready&&this.socket?.readyState===WebSocket.OPEN)
         for(const frame of frames)this.socket.send(frame);
       if(this.mode==='rest')this.vad.feed(level,now);
-      this.lastLoud=now;this.refreshPhase();return;
+      this.speechStartedAt=now;this.lastLoud=now;this.refreshPhase();return;
     }
     if(now<this.muteUntil)return;
+    if(this.mode==='stream'&&!this.ready)return;
+    if(level>=0.025&&this.speechStartedAt===null)this.speechStartedAt=now;
     if(this.mode==='stream'&&this.ready&&this.socket?.readyState===WebSocket.OPEN&&this.socket.bufferedAmount<65536)this.socket.send(data.pcm);
     if(this.mode==='rest')this.vad.feed(level,now);
     if(level>=0.025){this.lastLoud=now;if(!this.executing&&!this.transcribing&&this.phase==='LISTENING')this.refreshPhase();}
@@ -168,29 +212,31 @@ export class VoiceSession {
     if(!this.active||!this.stream||this.recorder?.state==='recording')return;
     if(typeof MediaRecorder==='undefined'){this.emit('ERROR','Automatic REST fallback requires MediaRecorder.');return;}
     const recorder=new MediaRecorder(this.stream),chunks:Blob[]=[];
-    let valid=false;
+    let valid=false,speechStart:number|null=null,speechEnd=0;
     this.recorder=recorder;
     recorder.ondataavailable=event=>{if(event.data.size)chunks.push(event.data);};
     recorder.onstop=()=>{
       if(!this.active||!chunks.length||!valid)return;
       const blob=new Blob(chunks,{type:recorder.mimeType});
       const id=`rest-${++this.restIndex}`;
-      this.restUploads=this.restUploads.then(()=>this.uploadRest(blob,id));
+      this.restUploads=this.restUploads.then(()=>this.uploadRest(blob,id,speechStart,speechEnd));
     };
-    this.setRestRecordingValid=value=>{valid=value;};
+    this.setRestRecordingTiming=(value,start,end)=>{valid=value;speechStart=start;speechEnd=end;};
     recorder.start();
     this.restRecordingTimer=window.setTimeout(()=>this.vad.limit(),30000);
   }
-  private setRestRecordingValid:((value:boolean)=>void)|null=null;
+  private setRestRecordingTiming:((valid:boolean,start:number|null,end:number)=>void)|null=null;
   private endRestRecording(valid:boolean){
     window.clearTimeout(this.restRecordingTimer);
     const recorder=this.recorder;
     if(!recorder||recorder.state!=='recording')return;
-    this.setRestRecordingValid?.(valid);
+    const speechStart=this.speechStartedAt,speechEnd=this.lastLoud;
+    this.speechStartedAt=null;this.lastLoud=0;
+    this.setRestRecordingTiming?.(valid,speechStart,speechEnd);
     recorder.stop();
     if(!this.executing)this.refreshPhase();
   }
-  private async uploadRest(blob:Blob,id:string){
+  private async uploadRest(blob:Blob,id:string,speechStart:number|null,speechEnd:number){
     if(!this.active)return;
     this.transcribing=true;this.refreshPhase();
     try{
@@ -199,10 +245,7 @@ export class VoiceSession {
       const data=await response.json();
       if(!response.ok)throw new Error(data.detail||'Transcription failed.');
       if(this.active&&String(data.transcript||'').trim()){
-        const text=String(data.transcript).trim();if(this.queue.push({id,text})){
-          if(this.lastLoud)this.callbacks.onSttTiming?.(performance.now()-this.lastLoud);
-          this.callbacks.onTranscript(text);
-        }
+        this.acceptTranscript(id,String(data.transcript).trim(),this.completedTiming(speechStart,speechEnd,'rest'));
       }
     }catch(error){if(this.active&&!(error instanceof DOMException&&error.name==='AbortError'))this.callbacks.onError(error instanceof Error?error.message:String(error));}
     finally{this.transcribing=false;this.refreshPhase();}
@@ -228,6 +271,7 @@ export class VoiceSession {
   stop(){
     if(!this.active){this.emit('IDLE','');return;}
     this.callbacks.onPartialTranscript?.('');
+    window.clearTimeout(this.fragmentTimer);this.pendingFragment=null;
     this.active=false;this.queue.stop();this.restAbort.abort();
     this.interruptSpeech();
     window.clearTimeout(this.readyTimer);window.clearTimeout(this.reconnectTimer);
@@ -243,6 +287,6 @@ export class VoiceSession {
     this.stream?.getTracks().forEach(track=>track.stop());
     void this.context?.close().catch(()=>{});
     this.stream=null;this.context=null;this.source=null;this.worklet=null;
-    this.executing=false;this.transcribing=false;this.mode='stream';this.emit('IDLE','');
+    this.executing=false;this.transcribing=false;this.speechStartedAt=null;this.lastLoud=0;this.mode='stream';this.emit('IDLE','');
   }
 }

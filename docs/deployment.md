@@ -1,10 +1,10 @@
-# Deploy Voxraft on Render
+# Deploy Voxraft
 
 The production container serves the built React app and FastAPI from one HTTPS origin. Browser calls to `/api/plan`, `/api/transcribe`, and `/api/voice/stream` therefore work without a separate frontend URL or proxy configuration. FFmpeg is included for recorded-audio transcription.
 
-**Current status:** deployment was deferred at the participant's request. No hosted Voxraft service was created. The production image and browser workflow were tested locally. Render rejected the private repository as unfetchable; when resuming, verify the linked Git deployment credential and repository access before creating the service.
+**Current status:** Voxraft is live on AWS Lightsail at <https://voxraft.16-4-87-134.nip.io>. Pushes to `main` run the frontend and backend checks, build a verified production image, and deploy it through the self-hosted production runner. Render is not used by the current deployment.
 
-## Render setup
+## Optional Render setup
 
 1. Keep the GitHub repository private. Connect it to Render and allow Render access to this repository.
 2. Create a Blueprint from the repository's `render.yaml`, or create a Docker web service using the root `Dockerfile` and health path `/api/health`.
@@ -15,6 +15,8 @@ The production container serves the built React app and FastAPI from one HTTPS o
 
 The Blueprint creates a free web service and generates `AUTH_SECRET_KEY`. The database is the existing Neon production branch, so the Blueprint does not create a second PostgreSQL database. Render's free web service can sleep after 15 idle minutes and may take about a minute to wake up. Open the app before recording and allow it to finish starting. [Render free service behaviour](https://render.com/docs/free)
 
+The API returns HTTP 429 when an account exceeds 60 AI requests or 60 REST transcriptions per hour. Voice is limited to 10 starts per account per hour, two concurrent sessions, and five minutes per session. Global hourly limits and account sign-up limits also apply. An account can hold up to 50 diagrams. Requests over 3.5 MB are rejected before parsing (16 MB for audio uploads). Set spending limits in the OpenAI and Gnani provider accounts as a second cap on charges.
+
 Render supplies `RENDER_EXTERNAL_URL`, which the relay accepts as the app's WebSocket origin. For a custom domain, also set `VOICE_ALLOWED_ORIGINS` to the exact HTTPS origin; separate multiple origins with commas. [Render environment variables](https://render.com/docs/environment-variables)
 
 ## Local production check
@@ -22,13 +24,13 @@ Render supplies `RENDER_EXTERNAL_URL`, which the relay accepts as the app's WebS
 From the repository root:
 
 ```bash
-docker build -t bolcanvas .
+docker build -t voxraft .
 docker run --rm -p 127.0.0.1:8000:8000 \
   --env-file .env.local \
   --env-file backend/.env \
   -e AUTH_SECRET_KEY=replace-with-a-random-secret-at-least-32-characters \
   -e VOICE_ALLOWED_ORIGINS=http://localhost:8000 \
-  bolcanvas
+  voxraft
 ```
 
 Open `http://localhost:8000`. `GET /api/health` should return `{"status":"ok"}`. This endpoint checks that the application is running; it does not test provider credentials or spend API credits.
@@ -42,13 +44,13 @@ Open `http://localhost:8000`. `GET /api/health` should return `{"status":"ok"}`.
 - The transcript produces one diagram edit, and the session stops cleanly.
 - The private repository is accessible to the reviewer specified in the submission form.
 
-Each signed-in account has one project in Neon Postgres. A second browser signed in to the same account loads that project. Use **Save** to retain a portable copy as well. Local SQLite is suitable for development, but Render's free web filesystem is ephemeral and must not be used as the deployed account store.
+Each signed-in account can hold up to 50 projects in Neon Postgres. A second browser signed in to the same account loads the same project list. Use **Save** to retain a portable copy as well. Local SQLite is suitable for development, but an ephemeral host filesystem must not be used as the deployed account store.
 
 ## Troubleshooting
 
 | Symptom | Check |
 | --- | --- |
-| Loading screen after inactivity | Wait for the free Render instance to wake. |
+| Loading screen after inactivity on Render | Wait for the free Render instance to wake. The current Lightsail deployment stays running. |
 | Voice immediately switches to REST | Check `GNANI_API_KEY`, provider connectivity, and the WebSocket origin. The relay accepts the exact Render URL or an explicitly configured origin. |
 | Microphone unavailable | Open the HTTPS app directly and allow browser microphone access. |
 | Planner failure | Check the configured planner credentials and quota. A configured planner failure is surfaced to avoid silently interpreting a command differently. |

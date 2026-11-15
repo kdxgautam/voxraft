@@ -44,6 +44,6 @@ export function appendGeneratedDiagram(scene:Scene,actions:Action[],kind:Generat
   const label={flowchart:'Flowchart',mindmap:'Mind map',hierarchy:'Org chart',architecture:'System architecture',brainstorming:'Ideas'}[kind];
   let index=1;
   while(names.has(`${label} ${index}`.toLowerCase()))index++;
-  const container={id:newId(),name:`${label} ${index}`,nodeIds:nodes.map(node=>node.id),intentType:kind,...(kind==='mindmap'&&built.context.rootId?{rootId:built.context.rootId}:{})};
+  const container={id:newId(),name:`${label} ${index}`,nodeIds:nodes.map(node=>node.id),intentType:kind,implicit:true,...(kind==='mindmap'&&built.context.rootId?{rootId:built.context.rootId}:{})};
   return {...base,nodes:[...base.nodes,...nodes],edges:[...base.edges,...built.edges],containers:[...(base.containers||[]),container],recentIds:[...built.recentIds,...base.recentIds].slice(0,5),future:[]};
 }

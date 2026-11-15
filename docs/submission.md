@@ -4,14 +4,14 @@
 
 The participant requires a **private Git repository**, **demo video**, and **deployed app**. Keep the repository private. The [submission form](https://forms.cloud.microsoft/pages/responsepage.aspx?id=2OcffmZAkUasdAANYYVwjQGaBzel_ZVOv4Z5BmzbI1xUQUVGMTcyOVlSWlJKWUFNRE5ZVzM3OUQ4OC4u&route=shorturl), inspected in the browser, specifically asks for a project URL containing a solution pitch no longer than one page and a **2–3 minute demo video**. It does not display a GitHub reviewer username; obtain the designated reviewer from the organiser's instructions before granting access.
 
-Use the [one-page PDF](../output/pdf/bolcanvas-solution-pitch.pdf) as the short pitch; [solution-pitch.md](solution-pitch.md) is the editable text version. The form also asks for your name, registered email, teammate's registered email for a team entry, and institution. It offers a field for the public demo post. The official challenge page describes that public post as part of submission; include it.
+Use the [one-page PDF](../output/pdf/voxraft-solution-pitch.pdf) as the short pitch; [solution-pitch.md](solution-pitch.md) is the editable text version. The README also opens with the pitch. The form asks for your name, registered email, teammate's registered email for a team entry, and institution. It offers a field for the public demo post. The official challenge page describes that public post as part of submission; include it.
 
 The [official challenge page](https://www.gnani.ai/internship) gives the closing time as **November 10, 2026, 11:59 PM IST**. Publish the working demo on LinkedIn or X before submitting, tag Gnani AI, and include `#GnaniAI` and `#GreatIndianAIInternshipChallenge`. The public post and private code repository serve different purposes. Verified public engagement is part of shortlisting; interviews assess individuals.
 
 Complete these fields with real links and contributions before submitting:
 
-- Private repository: https://github.com/kdxgautam/bolCanvas (created and verified private; reviewer access still needs the organiser's designated account).
-- Deployed app: deferred at the participant's request. The Docker image and Render configuration are ready; Render could not fetch the private repository during setup.
+- GitHub project URL: https://github.com/kdxgautam/voxraft (matches the configured Git remote; confirm reviewer access before submission).
+- Deployed app: https://voxraft.16-4-87-134.nip.io (AWS Lightsail; automated deployment from `main`).
 - Demo video: pending recording with a real microphone.
 - Public demo post: pending publication.
 - Contribution: state what each participant actually implemented and tested.
@@ -42,7 +42,7 @@ Aim for about 2 minutes 30 seconds. Rehearse the sequence before recording and l
 | 1:10–1:35 | Select the database block and say “Make this orange.” Then say “Undo.” Show the colour reverting. If recognition needs a retry, keep the recovery visible. |
 | 1:35–1:55 | Stop voice. Move a block manually. Save the project and show the Excalidraw export option. Explain that the result stays editable. |
 | 1:55–2:20 | Explain: “Gnani Prisma transcribes the audio. FastAPI relays the stream. A planner returns structured edits, which the client validates before updating a scene with stable IDs and undo history.” Show the relevant code or repository briefly. |
-| 2:20–2:30 | State current scope: English voice, local project persistence, streaming with a REST fallback. End on the working diagram and app name. |
+| 2:20–2:30 | State current scope: English voice, account-backed project autosave, streaming with a REST fallback. End on the working diagram and app name. |
 
 Record your screen and microphone together. Keep provider keys and environment files off screen. The final video should show actual speech recognition on the deployed app, not an automated text-command recording.
 
@@ -71,7 +71,7 @@ Say “create a frontend, backend and database,” connect them, then insert Red
 
 Gnani Prisma handles speech recognition through its streaming SDK, with REST transcription as a fallback. The diagram engine validates structured edits and keeps stable component IDs so follow-up commands can refer to the existing diagram.
 
-The video shows the working app. Try it: [replace with deployed app URL]
+The video shows the working app. Try it: https://voxraft.16-4-87-134.nip.io
 
 [Mention Gnani AI's official account using the platform's account picker. Attach the real demo video and adjust wording to match what the recording actually demonstrates.]
 
@@ -87,7 +87,7 @@ The video shows the working app. Try it: [replace with deployed app URL]
 | What happens when a reference is ambiguous? | Candidate node IDs are retained with the pending command. A name, selection, or ordinal answer resolves the edit. |
 | What happens when streaming fails? | The relay and browser attempt reconnects. The browser can segment recordings using silence and send them to the REST transcription endpoint. This requires FFmpeg on the server. |
 | How do you prevent half-applied commands? | Actions execute against a copied scene. The new scene is committed only after the entire batch succeeds. |
-| What are the limitations? | The voice configuration is English-only; live accuracy depends on audio and network conditions. Complex commands require a planner. Persistence is local to the browser, and there is no collaborative editing or account system. |
+| What are the limitations? | The voice configuration is English-only; live accuracy depends on audio and network conditions. Complex commands require a planner. Diagrams autosave to private accounts, but collaborative editing and verified multilingual support are not available. |
 | How did you measure performance? | Command Activity records approximate transcription, planning, scene-edit, and next-view timings. Report measurements from your actual rehearsal, not model benchmark numbers. |
 
 ## Validation record
@@ -96,4 +96,4 @@ Validation on November 10, 2026: 45 frontend tests and 34 backend tests passed, 
 
 Real-provider smoke check: one synthetic English sample saying “Create a frontend, a backend and a database” was transcribed correctly through both Gnani REST and streaming from the production container. The configured planner returned the expected three node-creation actions. This checks integration with a synthetic sample, not real microphone quality or overall recognition accuracy.
 
-Live microphone recognition and the final public recording require a rehearsal on the deployed app. No general latency, accuracy, user adoption, or accessibility-testing results are claimed here.
+Current local validation on November 15, 2026: 142 frontend and 122 backend tests passed, and all seven saved planner replay cases passed against the configured model. Local microphone trials exercised multi-step editing, corrections, undo, and a paused command; [measured timings and limitations](evaluation-2026-11-15.md) are recorded separately. The final public recording and deployed HTTPS microphone check are still pending. No general recognition accuracy, user adoption, or accessibility-testing results are claimed here.

@@ -43,7 +43,7 @@ export type DiagramContext={type:typeof diagramTypes[number]|null;purpose:string
 export type Node = {id:string;label:string;shape:'rectangle'|'ellipse'|'diamond'|'cylinder';shapeSource?:'explicit'|'suggested'|'intent';role?:NodeRole;roleSource?:SemanticSource;x:number;y:number;width:number;height:number;color:string;fillColor?:string;fontFamily?:2|3};
 export type Edge = {id:string;sourceId:string;targetId:string;label:string;relation?:Relation;relationSource?:SemanticSource;endArrowhead?:'arrow'|null;arrowheadSource?:SemanticSource;color?:string;fontFamily?:2|3};
 export type NodeGroup = {name:string;nodeIds:string[]};
-export type Container = {id:string;name:string;nodeIds:string[];parentId?:string;collapsed?:boolean;color?:string;intentType?:Exclude<NonNullable<DiagramContext['type']>,'mixed'>;rootId?:string};
+export type Container = {id:string;name:string;nodeIds:string[];parentId?:string;collapsed?:boolean;implicit?:boolean;color?:string;intentType?:Exclude<NonNullable<DiagramContext['type']>,'mixed'>;rootId?:string};
 export type CanvasExtra = {id:string;type:string;[key:string]:unknown};
 export type Snapshot = {nodes:Node[];edges:Edge[];recentIds:string[];context:DiagramContext;recentEdgeId?:string|null;groups?:NodeGroup[];containers?:Container[];extras?:CanvasExtra[]};
 export type Scene = Snapshot & {past:Snapshot[];future:Snapshot[]};
@@ -340,7 +340,7 @@ export function execute(scene:Scene, input:unknown):Scene{
             const names=new Set((draft.containers||[]).map(container=>container.name.toLowerCase()));
             let name=`${previous[0].toUpperCase()}${previous.slice(1)} section`,index=2;
             while(names.has(name.toLowerCase()))name=`${previous[0].toUpperCase()}${previous.slice(1)} section ${index++}`;
-            draft.containers=[...(draft.containers||[]),{id:newId(),name,nodeIds:loose.map(node=>node.id),intentType:previous,...(previous==='mindmap'&&draft.context.rootId?{rootId:draft.context.rootId}:{})}];
+            draft.containers=[...(draft.containers||[]),{id:newId(),name,nodeIds:loose.map(node=>node.id),intentType:previous,implicit:true,...(previous==='mindmap'&&draft.context.rootId?{rootId:draft.context.rootId}:{})}];
           }
         }
         draft.context={...draft.context,type:action.diagramType,purpose:action.purpose??draft.context.purpose,source:action.source||'explicit',rootId:action.diagramType==='mindmap'?(draft.context.rootId|| (draft.nodes.length===1?draft.nodes[0].id:undefined)):undefined};break;

@@ -31,6 +31,7 @@ with TestClient(app, base_url='https://testserver') as client:
     assert client.get('/sign-in').text == '<html>BolCanvas deployment</html>'
     assert client.get('/dashboard').text == '<html>BolCanvas deployment</html>'
     assert client.get('/app/test-diagram-id').text == '<html>BolCanvas deployment</html>'
+    assert client.get('/share/test-share-token').text == '<html>BolCanvas deployment</html>'
     with client.websocket_connect('wss://testserver/api/voice/stream', headers={'origin': 'https://testserver'}) as socket:
         assert socket.receive_json()['type'] == 'fallback'
 '''], cwd=Path(__file__).resolve().parents[1], env=environment, capture_output=True, text=True, timeout=15)

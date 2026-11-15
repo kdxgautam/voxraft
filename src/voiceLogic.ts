@@ -1,4 +1,5 @@
-export type CompletedUtterance = {id:string;text:string};
+export type UtteranceTiming={speechStart:number;speechEnd:number;transcriptAt:number;mode:'stream'|'rest'};
+export type CompletedUtterance = {id:string;text:string;timing?:UtteranceTiming};
 
 export class UtteranceQueue {
   private pending:CompletedUtterance[]=[];
@@ -7,7 +8,7 @@ export class UtteranceQueue {
   private active=true;
   private running=false;
   private controller:AbortController|null=null;
-  constructor(private apply:(text:string,signal:AbortSignal)=>Promise<void>,private onRunning:(running:boolean)=>void,private onError:(error:unknown)=>void,private now:()=>number=Date.now){}
+  constructor(private apply:(text:string,signal:AbortSignal,timing?:UtteranceTiming)=>Promise<void>,private onRunning:(running:boolean)=>void,private onError:(error:unknown)=>void,private now:()=>number=Date.now){}
   push(event:CompletedUtterance):boolean {
     const text=event.text.trim();
     if(!this.active||!text||event.id&&this.seen.has(event.id))return false;
@@ -16,7 +17,7 @@ export class UtteranceQueue {
     if(!event.id&&this.now()-(this.recent.get(normalized)??-Infinity)<duplicateWindow)return false;
     if(event.id)this.seen.add(event.id);
     this.recent.set(normalized,this.now());
-    this.pending.push({id:event.id,text});
+    this.pending.push({...event,text});
     void this.drain();
     return true;
   }
@@ -28,7 +29,7 @@ export class UtteranceQueue {
       const event=this.pending.shift()!;
       this.controller=new AbortController();
       this.onRunning(true);
-      try{await this.apply(event.text,this.controller.signal);}
+      try{await this.apply(event.text,this.controller.signal,event.timing);}
       catch(error){if(!this.controller.signal.aborted)this.onError(error);}
       finally{this.controller=null;this.onRunning(false);}
     }

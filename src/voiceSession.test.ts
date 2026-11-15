@@ -66,6 +66,49 @@ describe('continuous voice session',()=>{
     expect(applied).toEqual(['Add a gateway']);
     session.stop();
   });
+  it('passes speech-to-transcript timestamps to the command',async()=>{
+    const fake=browser();
+    let timing:{speechStart:number;speechEnd:number;transcriptAt:number;mode:string}|undefined;
+    const session=new VoiceSession({onStatus:()=>{},onTranscript:()=>{},onExecute:async(_text,_signal,value)=>{timing=value;},onError:()=>{}});
+    await session.start();
+    fake.sockets[0].receive({type:'ready'});
+    fake.getPort().onmessage?.({data:{pcm:new ArrayBuffer(1024),level:0.1}});
+    fake.getPort().onmessage?.({data:{pcm:new ArrayBuffer(1024),level:0}});
+    fake.sockets[0].receive({type:'completed',id:'timed',text:'Add API'});
+    await tick();
+    expect(timing?.mode).toBe('stream');
+    expect(timing!.speechStart).toBeLessThanOrEqual(timing!.speechEnd);
+    expect(timing!.speechEnd).toBeLessThanOrEqual(timing!.transcriptAt);
+    session.stop();
+  });
+  it('joins a paused incomplete voice fragment before planning',async()=>{
+    vi.useFakeTimers();
+    const fake=browser(),applied:string[]=[],errors:string[]=[],partials:string[]=[];
+    const session=new VoiceSession({onStatus:()=>{},onTranscript:()=>{},onPartialTranscript:value=>partials.push(value),onExecute:async value=>{applied.push(value);},onError:value=>errors.push(value)});
+    await session.start();
+    const socket=fake.sockets[0];socket.receive({type:'ready'});
+    socket.receive({type:'completed',id:'part-1',text:'Move the'});
+    expect(applied).toEqual([]);
+    expect(partials.at(-1)).toBe('Move the');
+    await vi.advanceTimersByTimeAsync(500);
+    socket.receive({type:'completed',id:'part-2',text:'API Gateway above the database'});
+    await vi.advanceTimersByTimeAsync(0);
+    expect(applied).toEqual(['Move the API Gateway above the database']);
+    expect(errors).toEqual([]);
+    session.stop();
+  });
+  it('asks for a repeat when an incomplete voice fragment has no continuation',async()=>{
+    vi.useFakeTimers();
+    const fake=browser(),applied:string[]=[],errors:string[]=[];
+    const session=new VoiceSession({onStatus:()=>{},onTranscript:()=>{},onExecute:async value=>{applied.push(value);},onError:value=>errors.push(value)});
+    await session.start();
+    fake.sockets[0].receive({type:'ready'});
+    fake.sockets[0].receive({type:'completed',id:'part-1',text:'Move the'});
+    await vi.advanceTimersByTimeAsync(4000);
+    expect(applied).toEqual([]);
+    expect(errors.at(-1)).toContain('repeat the full instruction');
+    session.stop();
+  });
   it('applies three completed segments, ignores silence/duplicates, and releases microphone on stop',async()=>{
     const fake=browser(),statuses:VoiceStatus[]=[],transcripts:string[]=[],applied:string[]=[];
     const session=new VoiceSession({onStatus:value=>statuses.push(value),onTranscript:value=>transcripts.push(value),onExecute:async value=>{applied.push(value);},onError:()=>{},getKeyTerms:()=>['Payments API']});
@@ -101,6 +144,15 @@ describe('continuous voice session',()=>{
     fake.sockets[1].receive({type:'ready'});
     expect(statuses.at(-1)?.phase).toBe('LISTENING');
     session.stop();
+  });
+  it('stops when the server rejects another voice session',async()=>{
+    const fake=browser(),errors:string[]=[];
+    const session=new VoiceSession({onStatus:()=>{},onTranscript:()=>{},onExecute:async()=>{},onError:value=>errors.push(value)});
+    await session.start();
+    fake.sockets[0].receive({type:'limit',message:'Voice session limit reached.'});
+    expect(errors).toEqual(['Voice session limit reached.']);
+    expect(fake.stopTrack).toHaveBeenCalledOnce();
+    expect(fake.sockets[0].readyState).toBe(3);
   });
   it('recovers when the WebSocket never opens',async()=>{
     vi.useFakeTimers();
@@ -149,6 +201,34 @@ describe('continuous voice session',()=>{
     await vi.advanceTimersByTimeAsync(1100);
     frame(0);frame(.1);
     expect(recorders).toHaveLength(2);
+    session.stop();
+  });
+  it('passes REST fallback timing with the completed command',async()=>{
+    vi.useFakeTimers();
+    const fake=browser();
+    class Recorder {
+      state:'inactive'|'recording'='inactive';mimeType='audio/webm';
+      ondataavailable:((event:{data:Blob})=>void)|null=null;
+      onstop:(()=>void)|null=null;
+      start(){this.state='recording';}
+      stop(){this.state='inactive';this.ondataavailable?.({data:new Blob(['audio'])});this.onstop?.();}
+    }
+    vi.stubGlobal('MediaRecorder',Recorder);
+    vi.stubGlobal('fetch',vi.fn(async()=>({ok:true,json:async()=>({transcript:'Add Redis'})})));
+    let timing:{speechStart:number;speechEnd:number;transcriptAt:number;mode:string}|undefined;
+    const session=new VoiceSession({onStatus:()=>{},onTranscript:()=>{},onExecute:async(_text,_signal,value)=>{timing=value;},onError:()=>{}});
+    await session.start();
+    fake.sockets[0].receive({type:'fallback'});
+    const frame=(level:number)=>fake.getPort().onmessage?.({data:{pcm:new ArrayBuffer(1024),level}});
+    frame(.1);
+    await vi.advanceTimersByTimeAsync(250);
+    frame(.1);
+    await vi.advanceTimersByTimeAsync(1100);
+    frame(0);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(timing?.mode).toBe('rest');
+    expect(timing!.speechStart).toBeLessThanOrEqual(timing!.speechEnd);
+    expect(timing!.speechEnd).toBeLessThanOrEqual(timing!.transcriptAt);
     session.stop();
   });
   it('waits through a ten-second Gnani connection and only sends audio after ready',async()=>{

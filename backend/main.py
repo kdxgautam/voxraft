@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from starlette.types import ASGIApp, Receive, Scope, Send
 from review_agent import ReviewRequest, run_review
 from layout_agent import LayoutRequest, run_layout_critique
 from visual_agent import VisualRequest, run_visual_design
@@ -19,7 +20,7 @@ from voice_stream import configured_language, parse_key_terms, router as voice_r
 from canvas_context import canvas_facts
 from scope_context import scopes
 from intent_agent import brainstorming_actions, explicit_relation_action, explicit_role_action, explicit_start, flowchart_actions, hierarchy_actions, mindmap_actions, suggest
-from auth import init_db, require_user, router as auth_router
+from auth import check_rate_limit, init_db, require_user, router as auth_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -37,10 +38,42 @@ async def lifespan(app: FastAPI):
                 app.state.planner_client = previous
 
 
+class RequestSizeLimitMiddleware:
+    def __init__(self, app: ASGIApp):
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send):
+        if scope['type'] != 'http' or not scope['path'].startswith('/api/') or scope['method'] in ('GET', 'HEAD', 'OPTIONS'):
+            return await self.app(scope, receive, send)
+        maximum = 16_000_000 if scope['path'] == '/api/transcribe' else 3_500_000
+        length = next((value.decode() for name, value in scope['headers'] if name == b'content-length'), '')
+        if length.isdecimal() and int(length) > maximum:
+            return await JSONResponse({'detail': 'Request is too large.'}, status_code=413)(scope, receive, send)
+        body = bytearray()
+        while True:
+            message = await receive()
+            if message['type'] != 'http.request':
+                return
+            body.extend(message.get('body', b''))
+            if len(body) > maximum:
+                return await JSONResponse({'detail': 'Request is too large.'}, status_code=413)(scope, receive, send)
+            if not message.get('more_body'):
+                break
+        pending = True
+        async def replay():
+            nonlocal pending
+            if pending:
+                pending = False
+                return {'type': 'http.request', 'body': bytes(body), 'more_body': False}
+            return await receive()
+        return await self.app(scope, replay, send)
+
+
 app = FastAPI(title="Voxraft API", lifespan=lifespan)
 app.include_router(voice_router)
 app.include_router(auth_router)
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(RequestSizeLimitMiddleware)
 
 
 @app.middleware('http')
@@ -60,26 +93,36 @@ async def health():
     return {"status": "ok"}
 
 
-@app.post("/api/review")
+def ai_quota(user: dict = Depends(require_user)):
+    check_rate_limit(f'ai:{user["id"]}', 60, 3600)
+    check_rate_limit('ai:global', 300, 3600)
+
+
+def transcription_quota(user: dict = Depends(require_user)):
+    check_rate_limit(f'transcribe:{user["id"]}', 60, 3600)
+    check_rate_limit('transcribe:global', 300, 3600)
+
+
+@app.post("/api/review", dependencies=[Depends(ai_quota)])
 async def review(request: ReviewRequest, user: dict = Depends(require_user)):
     return await run_review(request, app.state.planner_client if hasattr(app.state, "planner_client") else None)
 
 
-@app.post("/api/layout-critique")
+@app.post("/api/layout-critique", dependencies=[Depends(ai_quota)])
 async def layout_critique(request: LayoutRequest, user: dict = Depends(require_user)):
     return await run_layout_critique(request, app.state.planner_client if hasattr(app.state, "planner_client") else None)
 
 
-@app.post("/api/visual-design")
+@app.post("/api/visual-design", dependencies=[Depends(ai_quota)])
 async def visual_design(request: VisualRequest, user: dict = Depends(require_user)):
     return await run_visual_design(request, app.state.planner_client if hasattr(app.state, "planner_client") else None)
 
 
 class PlanRequest(BaseModel):
-    text: str = Field(min_length=1)
-    nodes: list[dict[str, Any]] = []
-    edges: list[dict[str, Any]] = []
-    recent_ids: list[str] = []
+    text: str = Field(min_length=1, max_length=1000)
+    nodes: list[dict[str, Any]] = Field(default_factory=list, max_length=500)
+    edges: list[dict[str, Any]] = Field(default_factory=list, max_length=1000)
+    recent_ids: list[str] = Field(default_factory=list, max_length=5)
     selected_node_id: str | None = None
     selected_node_ids: list[str] = []
     selected_edge_id: str | None = None
@@ -282,7 +325,7 @@ def generated_actions(result: Any, diagram_type: str) -> list[dict[str, Any]]:
     return nodes + edges
 
 
-@app.post('/api/generate')
+@app.post('/api/generate', dependencies=[Depends(ai_quota)])
 async def generate(request: GenerateRequest, user: dict = Depends(require_user)):
     if request.diagram_type in ('auto', 'flowchart'):
         explicit = explicit_branching_flowchart(request.description)
@@ -579,6 +622,54 @@ def guard_isolated_delete(request: PlanRequest, actions: list[dict[str, Any]]) -
     return [], f"I found multiple unconnected {name} nodes. Select the one you mean and say 'this one'."
 
 
+def align_planned_actions(request: PlanRequest, actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Use canonical component names and unambiguous scene IDs in planner output."""
+    ids = {node['id'] for node in request.nodes if isinstance(node.get('id'), str)}
+    by_label: dict[str, list[str]] = {}
+    for node in request.nodes:
+        if isinstance(node.get('id'), str) and isinstance(node.get('label'), str):
+            by_label.setdefault(node['label'].strip().casefold(), []).append(node['id'])
+    aligned = []
+    for action in actions:
+        item = action.copy()
+        if item.get('type') == 'ADD_NODE' and re.fullmatch(r'front[\s-]?end', item.get('label', '').strip(), re.I):
+            item['label'] = 'Frontend'
+        if item.get('type') == 'ADD_EDGE':
+            for field in ('source', 'target'):
+                reference = item.get(field)
+                if not isinstance(reference, str) or reference in ids:
+                    continue
+                matches = by_label.get(reference.strip().casefold(), [])
+                if len(matches) == 1:
+                    item[field] = matches[0]
+        aligned.append(item)
+    return aligned
+
+
+def quick_canvas_actions(request: PlanRequest) -> list[dict[str, Any]] | None:
+    """Handle simple edits on an unscoped Architecture or Mixed canvas."""
+    diagram_type = request.diagram_context.get('type')
+    if diagram_type not in ('architecture', 'mixed') or request.containers or request.pending_command or request.revision_of:
+        return None
+    command = request.text.strip().rstrip('.!')
+    creation = re.fullmatch(r'(?:please\s+)?(?:add|create)\s+(.+)', command, re.I)
+    if creation and len(creation[1].split()) <= 3 and not re.search(r'[,;]|\b(?:and|to|in|from|for|as|under|beneath|between|inside|within|with|before|after|above|below|connected|linked|called|named|another)\b', creation[1], re.I):
+        try:
+            actions = fallback(command)
+        except ValueError:
+            return None
+        if len(actions) == 1 and actions[0]['type'] == 'ADD_NODE':
+            return align_planned_actions(request, actions)
+    connection = re.fullmatch(r'(?:please\s+)?(?:connect|link)\s+(.+?)\s+to\s+(.+)', command, re.I) if diagram_type == 'architecture' else None
+    if connection and not re.search(r'\b(?:and|with|without|inside|within|under|between)\b|[,;]', command, re.I):
+        actions = [{'type': 'ADD_EDGE', 'source': clean(connection[1]), 'target': clean(connection[2])}]
+        aligned = align_planned_actions(request, actions)
+        ids = {node['id'] for node in request.nodes if isinstance(node.get('id'), str)}
+        if aligned[0]['source'] in ids and aligned[0]['target'] in ids and aligned[0]['source'] != aligned[0]['target']:
+            return aligned
+    return None
+
+
 async def llm_plan_detail(request: PlanRequest) -> tuple[list[dict[str, Any]], str, str | None]:
     if not request.pending_command and not request.revision_of:
         history = history_command(request.text)
@@ -691,7 +782,7 @@ async def llm_plan(request: PlanRequest) -> tuple[list[dict[str, Any]], str]:
     return actions, mode
 
 
-@app.post("/api/plan")
+@app.post("/api/plan", dependencies=[Depends(ai_quota)])
 async def plan(request: PlanRequest, user: dict = Depends(require_user)):
     # Follow-up text belongs to the pending edit, even when it resembles a new command.
     if request.pending_command or request.revision_of:
@@ -777,6 +868,9 @@ async def plan(request: PlanRequest, user: dict = Depends(require_user)):
         local = brainstorming_actions(request.text) or explicit_role_action(request.text) or explicit_relation_action(request.text)
         if local:
             return {'actions': local, 'mode': 'fallback'}
+    quick = quick_canvas_actions(request)
+    if quick:
+        return {'actions': quick, 'mode': 'fallback'}
     if request.diagram_context and not request.diagram_context.get('type') and not request.pending_command and not request.revision_of:
         semantic_placement = bool(re.search(r'\b(?:connect|link)\s+|\b(?:under|beneath|between|before|after|above|below)\b|\bnext\s+to\b|\b(?:left|right)\s+of\b|\b(?:branch|child|parent)\s+of\b', command, re.I))
         try:
@@ -819,10 +913,10 @@ async def planned_command(request: PlanRequest):
     actions, guard_question = guard_isolated_delete(request, actions)
     if guard_question: return {"actions": [], "mode": mode, "question": guard_question}
     if not actions: return {"actions": [], "mode": mode, "question": question or "What should I change? Please give a little more detail."}
-    return {"actions": actions, "mode": mode}
+    return {"actions": align_planned_actions(request, actions), "mode": mode}
 
 
-@app.post("/api/transcribe")
+@app.post("/api/transcribe", dependencies=[Depends(transcription_quota)])
 async def transcribe(audio: UploadFile = File(...), key_terms: str | None = Form(None), user: dict = Depends(require_user)):
     raw = audio.file.read()
     if not raw: raise HTTPException(400, "Audio clip is empty.")
@@ -871,4 +965,5 @@ if static_directory := os.getenv("STATIC_DIR"):
     for page in ('sign-in', 'sign-up', 'app', 'account', 'dashboard'):
         app.add_api_route('/' + page, frontend_page, methods=['GET'], include_in_schema=False)
     app.add_api_route('/app/{project_id}', frontend_page, methods=['GET'], include_in_schema=False)
+    app.add_api_route('/share/{token}', frontend_page, methods=['GET'], include_in_schema=False)
     app.mount("/", StaticFiles(directory=static_directory, html=True), name="frontend")

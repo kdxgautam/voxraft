@@ -21,6 +21,14 @@ describe('hands-free command ordering',()=>{
     expect(queue.push({id:'segment-1',text:'Undo'})).toBe(false);
     await tick();expect(done).toEqual(['Undo']);
   });
+  it('keeps the speech timing with its queued instruction',async()=>{
+    const timings:number[]=[];
+    const queue=new UtteranceQueue(async(_text,_signal,timing)=>{if(timing)timings.push(timing.speechStart);},()=>{},()=>{});
+    queue.push({id:'first',text:'Add API',timing:{speechStart:12,speechEnd:30,transcriptAt:45,mode:'stream'}});
+    queue.push({id:'second',text:'Add database',timing:{speechStart:50,speechEnd:90,transcriptAt:110,mode:'stream'}});
+    await tick();
+    expect(timings).toEqual([12,50]);
+  });
   it('accepts two separate undo utterances without IDs',async()=>{
     let now=1000;
     const done:string[]=[];

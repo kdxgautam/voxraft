@@ -442,3 +442,83 @@ def test_plan_corrects_wrong_connected_delete(monkeypatch):
         edges=[{'sourceId': 'frontend', 'targetId': 'connected'}],
     )))
     assert result == {'actions': [{'type': 'DELETE_NODE', 'target': 'isolated'}], 'mode': 'llm'}
+
+
+def test_plan_canonicalizes_frontend_component_without_changing_other_names(monkeypatch):
+    async def planner(_request):
+        return [
+            {'type': 'ADD_NODE', 'label': 'front end'},
+            {'type': 'ADD_NODE', 'label': 'API gateway'},
+            {'type': 'ADD_NODE', 'label': 'Front End Team'},
+        ], 'llm', None
+    monkeypatch.setattr(main, 'llm_plan_detail', planner)
+    result = asyncio.run(plan(PlanRequest(text='Create front end, API gateway, and Front End Team')))
+    assert [action['label'] for action in result['actions']] == ['Frontend', 'API gateway', 'Front End Team']
+
+
+def test_plan_uses_unique_scene_ids_for_model_edges(monkeypatch):
+    async def planner(_request):
+        return [
+            {'type': 'ADD_EDGE', 'source': 'Frontend', 'target': 'API Gateway'},
+            {'type': 'ADD_EDGE', 'source': 'API Gateway', 'target': 'Auth Service'},
+        ], 'llm', None
+    monkeypatch.setattr(main, 'llm_plan_detail', planner)
+    result = asyncio.run(plan(PlanRequest(text='Connect frontend to gateway and gateway to auth service', nodes=[
+        {'id': 'front', 'label': 'Frontend'},
+        {'id': 'gate', 'label': 'API Gateway'},
+        {'id': 'auth', 'label': 'Auth Service'},
+    ])))
+    assert result['actions'] == [
+        {'type': 'ADD_EDGE', 'source': 'front', 'target': 'gate'},
+        {'type': 'ADD_EDGE', 'source': 'gate', 'target': 'auth'},
+    ]
+
+
+def test_plan_keeps_ambiguous_edge_references_for_editor_clarification(monkeypatch):
+    async def planner(_request):
+        return [{'type': 'ADD_EDGE', 'source': 'API', 'target': 'Database'}], 'llm', None
+    monkeypatch.setattr(main, 'llm_plan_detail', planner)
+    result = asyncio.run(plan(PlanRequest(text='Connect API to Database', nodes=[
+        {'id': 'api-1', 'label': 'API'},
+        {'id': 'api-2', 'label': 'API'},
+        {'id': 'database', 'label': 'Database'},
+    ])))
+    assert result['actions'] == [{'type': 'ADD_EDGE', 'source': 'API', 'target': 'database'}]
+
+
+def test_confirmed_architecture_uses_local_path_for_simple_edits(monkeypatch):
+    async def unexpected_planner(_request):
+        raise AssertionError('A simple edit should not call the planner')
+    monkeypatch.setattr(main, 'llm_plan_detail', unexpected_planner)
+    context = {'type': 'architecture'}
+    created = asyncio.run(plan(PlanRequest(text='Add front end', diagram_context=context)))
+    assert created == {'actions': [{'type': 'ADD_NODE', 'label': 'Frontend'}], 'mode': 'fallback'}
+    connected = asyncio.run(plan(PlanRequest(text='Connect Frontend to API Gateway', diagram_context=context, nodes=[
+        {'id': 'front', 'label': 'Frontend'}, {'id': 'gate', 'label': 'API Gateway'},
+    ])))
+    assert connected == {'actions': [{'type': 'ADD_EDGE', 'source': 'front', 'target': 'gate'}], 'mode': 'fallback'}
+
+
+def test_unscoped_mixed_canvas_adds_a_neutral_node_locally(monkeypatch):
+    async def unexpected_planner(_request):
+        raise AssertionError('A simple mixed-canvas addition should not call the planner')
+    monkeypatch.setattr(main, 'llm_plan_detail', unexpected_planner)
+    result = asyncio.run(plan(PlanRequest(text='Add Redis.', diagram_context={'type': 'mixed'}, nodes=[{'id': 'api', 'label': 'API'}])))
+    assert result == {'actions': [{'type': 'ADD_NODE', 'label': 'Redis'}], 'mode': 'fallback'}
+
+
+@pytest.mark.parametrize('text,nodes', [
+    ('Create front end API gateway, auth service', []),
+    ('Create front end API gateway', []),
+    ('Add Redis under API Gateway', [{'id': 'gate', 'label': 'API Gateway'}]),
+    ('Add Redis to API Gateway', [{'id': 'gate', 'label': 'API Gateway'}]),
+    ('Add Redis as a cache', []),
+    ('Connect API to Database', [{'id': 'a', 'label': 'API'}, {'id': 'b', 'label': 'API'}, {'id': 'db', 'label': 'Database'}]),
+    ('Connect API to Database with an arrow', [{'id': 'api', 'label': 'API'}, {'id': 'db', 'label': 'Database'}]),
+])
+def test_architecture_fast_path_defers_complex_or_ambiguous_commands(monkeypatch, text, nodes):
+    async def planner(_request):
+        return [], 'llm', 'Planner received the command.'
+    monkeypatch.setattr(main, 'llm_plan_detail', planner)
+    result = asyncio.run(plan(PlanRequest(text=text, nodes=nodes, diagram_context={'type': 'architecture'})))
+    assert result == {'actions': [], 'mode': 'llm', 'question': 'Planner received the command.'}

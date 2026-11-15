@@ -3,7 +3,7 @@ import {containerBounds,descendantNodeIds,hiddenNodeIds,visibleContainers,type C
 export type Frame={container:Container;bounds:ReturnType<typeof containerBounds>};
 export function containerView(scene:Pick<Scene,'nodes'|'edges'|'containers'>){
   const containers=visibleContainers(scene);
-  const frames:Frame[]=containers.map(container=>({container,bounds:containerBounds(scene,container)}));
+  const frames:Frame[]=containers.filter(container=>!container.implicit||container.collapsed).map(container=>({container,bounds:containerBounds(scene,container)}));
   const hidden=hiddenNodeIds(scene);
   const nodes=scene.nodes.filter(node=>!hidden.has(node.id));
   const proxy=frames.filter(({container})=>container.collapsed).map(({container,bounds}):Node=>({id:`container:${container.id}`,label:container.name,shape:'rectangle',...bounds,color:container.color||'#8aa6d2'}));

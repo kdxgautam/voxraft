@@ -1,8 +1,24 @@
 import {describe,expect,it} from 'vitest';
 import {appendGeneratedDiagram} from './generatedDiagram';
+import {containerView} from './containerView';
 import {emptyScene,execute,effectiveDiagramType} from './scene';
 
 describe('generated diagram regions',()=>{
+  it('keeps automatic type scopes invisible while showing requested containers',()=>{
+    const scene=appendGeneratedDiagram(emptyScene(),[
+      {type:'ADD_NODE',label:'Web App'},{type:'ADD_NODE',label:'API Gateway'},
+      {type:'ADD_EDGE',source:'Web App',target:'API Gateway',relation:'connection'}
+    ],'architecture','Online store');
+    expect(scene.containers?.[0].implicit).toBe(true);
+    expect(containerView(scene).frames).toHaveLength(0);
+    expect(effectiveDiagramType(scene,scene.nodes[0].id)).toBe('architecture');
+    const grouped=execute(scene,[{type:'CREATE_CONTAINER',name:'Backend',targets:['Web App','API Gateway']}]);
+    expect(containerView(grouped).frames.map(frame=>frame.container.name)).toEqual(['Backend']);
+    const typed=execute(emptyScene(),[{type:'SET_DIAGRAM_CONTEXT',diagramType:'architecture'},{type:'ADD_NODE',label:'API'}]);
+    const mixed=execute(typed,[{type:'SET_DIAGRAM_CONTEXT',diagramType:'mixed'}]);
+    expect(mixed.containers?.[0].implicit).toBe(true);
+    expect(containerView(mixed).frames).toHaveLength(0);
+  });
   it('spreads a four-branch mind map around its center',()=>{
     const topics:Record<string,string[]>={
       Research:['Customer interviews','Competitor analysis'],
