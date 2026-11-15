@@ -5,6 +5,8 @@ export default defineConfig({
   plugins:[react(),tailwindcss()],
   server:{proxy:{'/api':{target:'http://localhost:8000',ws:true}}},
   build:{
+    // Excalidraw ships one prebuilt 1.82 MB module; the editor route is already lazy-loaded.
+    chunkSizeWarningLimit:1900,
     rollupOptions:{
       output:{
         // Preserve lazy imports and split prebuilt editor modules without pulling in their dependencies.
