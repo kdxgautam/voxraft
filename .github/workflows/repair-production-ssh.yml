@@ -12,5 +12,11 @@ jobs:
     environment: production
     timeout-minutes: 2
     steps:
-      - name: Update UFW allowlist
-        run: sudo --non-interactive /usr/sbin/ufw allow from 103.82.78.70 to any port 22 proto tcp
+      - name: Inspect maintenance access
+        run: |
+          if [[ -w /opt/voxraft/.env.production ]]; then
+            echo "runtime-env=writable"
+          else
+            echo "runtime-env=not-writable"
+          fi
+          sudo --non-interactive --list || true
