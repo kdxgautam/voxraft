@@ -1,0 +1,26 @@
+1
+00:00:00,000 --> 00:00:04,152
+I am starting with a blank canvas for a small online store.
+
+2
+00:00:06,500 --> 00:00:14,500
+Voice command: Create a frontend, an API gateway, an auth service, an order
+service, and a PostgreSQL database.
+
+3
+00:00:19,500 --> 00:00:28,300
+Voice command: Connect frontend to API gateway, API gateway to auth service,
+and API gateway to order service.
+
+4
+00:00:32,500 --> 00:00:37,100
+Voice command: Connect order service to PostgreSQL database.
+
+5
+00:00:41,500 --> 00:00:46,700
+Voice command: Insert Redis between order service and PostgreSQL database.
+
+6
+00:00:52,800 --> 00:00:58,416
+Voxraft keeps the project saved in the workspace, with editable exports and
+sharing when it is ready.
