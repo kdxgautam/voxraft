@@ -10,8 +10,8 @@ The production container serves the built React app and FastAPI from one HTTPS o
 2. Create a Blueprint from the repository's `render.yaml`, or create a Docker web service using the root `Dockerfile` and health path `/api/health`.
 3. Set `DATABASE_URL` to the pooled connection string for the linked Neon production branch and `DATABASE_URL_UNPOOLED` to its direct connection string. Both are runtime secrets in Render; the local `.env.local` is git-ignored and is not uploaded by the Blueprint.
 4. Set `GNANI_API_KEY` as a runtime secret. Set `OPENAI_API_KEY` for the AI planner; basic text commands work without it. If using another supported planner, configure its variables from `backend/.env.example` instead.
-5. Leave `GNANI_MOCK_TRANSCRIPT` unset for the submitted app. Never put provider keys in Git or variables prefixed with `VITE_`.
-6. Open the resulting HTTPS URL and run the demo sequence in [submission.md](submission.md).
+5. Leave `GNANI_MOCK_TRANSCRIPT` unset in production. Never put provider keys in Git or variables prefixed with `VITE_`.
+6. Open the resulting HTTPS URL and run the voice and text checks in the deployment acceptance section below.
 
 The Blueprint creates a free web service and generates `AUTH_SECRET_KEY`. The database is the existing Neon production branch, so the Blueprint does not create a second PostgreSQL database. Render's free web service can sleep after 15 idle minutes and may take about a minute to wake up. Open the app before recording and allow it to finish starting. [Render free service behaviour](https://render.com/docs/free)
 
@@ -42,7 +42,7 @@ Open `http://localhost:8000`. `GET /api/health` should return `{"status":"ok"}`.
 - Connection, undo, save/import, and reload work.
 - A real voice session reaches **Listening** and transcribes a new spoken command.
 - The transcript produces one diagram edit, and the session stops cleanly.
-- The private repository is accessible to the reviewer specified in the submission form.
+- The production repository and deployment runner have the access needed for automated releases.
 
 Each signed-in account can hold up to 50 projects in Neon Postgres. A second browser signed in to the same account loads the same project list. Use **Save** to retain a portable copy as well. Local SQLite is suitable for development, but an ephemeral host filesystem must not be used as the deployed account store.
 
