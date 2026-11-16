@@ -1,55 +1,108 @@
+<div align="center">
+
 # Voxraft
 
-**Submission pitch:** [One-page PDF](output/pdf/voxraft-solution-pitch.pdf) · [Accessible text version](docs/solution-pitch.md)
+### Speak an idea. Shape the diagram. Keep editing.
 
-## Solution pitch
+Voice-controlled diagrams on an editable Excalidraw canvas.
 
-**Explain a system aloud. Voxraft builds an editable diagram as you speak.**
+[![React](https://img.shields.io/badge/React-19-149ECA?style=flat-square&logo=react&logoColor=white)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-Python-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Excalidraw](https://img.shields.io/badge/Canvas-Excalidraw-6965DB?style=flat-square)](https://excalidraw.com/)
 
-**Problem.** Developers and students pause their explanation to draw boxes, arrows, and flows. During a discussion, the diagram quickly falls behind the idea.
+[Live app](https://voxraft.16-4-87-134.nip.io) · [Watch the 59-second demo](output/video/voxraft-demo-under-one-minute.mp4) · [Evaluation](docs/evaluation-2026-11-15.md) · [Deploy](docs/deployment.md)
 
-**Solution.** Voxraft turns spoken instructions into incremental edits on an Excalidraw canvas. Say “Create a frontend, API gateway, and PostgreSQL database,” then connect them, move a block, correct a connection, or undo. The same canvas can hold Architecture, Flowchart, Mind map, Hierarchy, and Brainstorming regions. Users can still draw manually; later voice commands work with the current diagram.
+</div>
 
-**How it works.** Gnani Prisma transcribes live speech through a FastAPI WebSocket relay, with REST transcription as a fallback. A local parser handles clear edits quickly; a configured AI planner interprets complex instructions in the context of the current scene. Voxraft validates the proposed actions, resolves references to existing components, and commits complete edits with stable IDs and undo history. Ambiguous references prompt a clarification. Provider credentials stay on the server.
+## Demo
 
-**Result and scope.** Private diagrams autosave to an account and can be exported as editable Excalidraw files or shared through a revocable read-only link. The current voice experience is in English. Local evaluation passed all seven saved planner replay cases and a live microphone trial confirmed multi-step editing; [measured results and limits](docs/evaluation-2026-11-15.md) are documented separately.
+[![Animated preview of the 59-second Voxraft demo, showing voice commands creating and connecting an architecture diagram](output/video/voxraft-demo-preview.gif)](output/video/voxraft-demo-under-one-minute.mp4)
 
-## Product guide
+**[Play the demo with sound](output/video/voxraft-demo-under-one-minute.mp4)** (59 seconds) · [Read the timed script](output/video/under-one-minute-script.md)
 
-Voxraft opens on a public home page. Create an account at **Sign up** with an email and a password of at least 12 characters. Sign-in opens a dashboard of your private diagrams. Choose **New canvas** on the dashboard and press **Start speaking** in the editor. Say “Create a diagram showing how a refund moves from request to resolution”; the AI chooses the type. **Add by voice** creates another typed region on the same canvas, so a flowchart, mind map, and architecture diagram can coexist. Text commands remain available in the dock. Each region keeps its own shape and connection rules without a visible boundary; containers appear on the canvas only when you create them. **Account** lets you change your password and sign out. Each diagram autosaves to the backend and keeps its own browser recovery copy for connection failures. Canvases with no visible shapes, connections, or containers are discarded when the dashboard loads; diagrams with content stay saved. An older local draft can be imported as a separate diagram after signing in. Local development uses SQLite; set `DATABASE_URL` to use PostgreSQL for a deployed app. Set a stable `AUTH_SECRET_KEY` of at least 32 characters in production.
+The demo uses a prerecorded voice command recording replayed through a virtual microphone, with AI narration. The on-screen diagram edits were captured from the working app.
 
-The **Diagram decisions** section holds up to eight short notes that you explicitly save. You can also say **“Remember that PostgreSQL database already has failover outside this diagram”** or **“Forget that PostgreSQL database already has failover outside this diagram.”** Notes are saved with the scene, included in undo/redo and project exports, and passed to the planner and review agents as context. A named failover decision suppresses that database's repeated replica hint; a vague note such as “managed externally” does not. **Clear** retains decisions; **New diagram** creates a separate blank project.
+## What is Voxraft?
 
-Voxraft also supports Flowchart diagrams. Describe a checkout process in the editor, or say **“Generate a flowchart for checkout.”** New steps use process rectangles, a question such as **“Payment approved?”** uses a decision diamond, and **Start** and **End** use ellipses. Sequence connections have arrowheads and can loop. **“If payment succeeds, send receipt; otherwise retry”** creates a decision with labeled Yes and No paths. Review checks missing entry and exit steps, unreachable steps, and unlabeled decision paths; Critique previews a top-down flow layout.
+Voxraft turns speech or text into safe, incremental diagram edits. Create components, connect them, move or rename blocks, correct the last instruction, and undo—all while keeping the result directly editable.
 
-To change an established diagram, say **“Convert to hierarchy”** or **“Convert to flowchart.”** Voxraft previews shape, relationship, and position changes. When an existing connection has no safe new meaning, choose its meaning in the preview; a mind map may also need a central topic. **Apply conversion** commits one undoable edit, while **Discard conversion** leaves the canvas as it was. Node and edge IDs and manually chosen shapes, colors, and fonts are preserved.
+It supports **Architecture**, **Flowchart**, **Mind map**, **Hierarchy**, **Brainstorming**, and mixed canvases where several diagram styles coexist.
 
-Containers can have their own diagram types. The AI assigns a type to each generated region. You can also say **“Set Ideas container to Mind map”** and **“Set Ideas as the central topic of Ideas container.”** A new block uses the nearest container type: **“Add PostgreSQL inside Ideas container”** is a topic, while the same label inside an Architecture container is a database. **“Add Payments under Features”** works when Features belongs to a mind map container. Connections between different types require an explicit meaning, such as **“Relate Payments to API Gateway.”** Review, Critique, and Design evaluate each scope using its type. Container intent and roots are saved and undoable.
+| You do this | Voxraft handles this |
+| --- | --- |
+| Speak naturally | Gnani Prisma streams the transcript to the app |
+| Refer to existing blocks | Stable IDs and scene context resolve the intended target |
+| Give a complex instruction | An AI planner proposes validated diagram actions |
+| Give a simple instruction | A local parser applies it without model latency |
+| Say something ambiguous | The editor asks a follow-up instead of guessing |
+| Draw or move something manually | The canonical scene stays synchronized |
 
-Voxraft supports Architecture, Mind map, Hierarchy, Brainstorming and notes, and Flowchart diagrams. A new canvas starts without a canvas-wide type: “Add PostgreSQL” creates a neutral rectangle, and “Add PostgreSQL as an idea” records an explicit note role. “Relate A to B,” “Make A the parent of B,” and “Connect A to B as a sequence” establish different relationship meanings without choosing a diagram type. The AI infers a type when a command gives enough evidence; it asks for relationship details when the meaning is ambiguous. The AI selects a type when generating each diagram. You can also say “Generate a diagram about checkout” or request a specific form. Region types and editable purpose are saved with project history. Existing shapes and connections stay as drawn when a type is chosen; defaults guide new elements. In a mind map, “Add Payments under Features” makes a branch without an arrowhead; “Move Payments under Checkout” reparents it. In Hierarchy, “Add Platform under Engineering” creates a parent–child edge, and “Put Platform under API Team” changes ancestry without moving existing nodes. **Review** identifies unattached hierarchy nodes; **Critique** previews a top-down tree before you apply it. In Brainstorming, new nodes are rectangular notes regardless of labels such as PostgreSQL. Use “Group Checkout ideas and Demo video as submission ideas” for loose membership; links appear only when requested, as arrowless associations by default. Critique preserves nonoverlapping note positions. **New diagram** starts a separate blank project; **Add by voice** keeps the current canvas and adds another typed region.
+## Try it by voice
 
-Voice controlled diagram editing. React + Vite renders an editable Excalidraw canvas. A separate canonical scene stores nodes, edges, relationships, diagram intent, recent references, and undo/redo snapshots.
+Start a voice session, wait for **Listening**, then speak one instruction at a time.
 
-On an empty canvas, describe an idea in **Generate** and choose Flowchart, Mind map, Org chart, System architecture, or Brainstorming. With an AI planner configured, Voxraft builds a connected, editable diagram in one undoable step. Spoken commands such as **“Generate a flowchart of order fulfillment”** use the same path. Four starter templates work without AI. The **More** menu exports PNG and SVG, opens the browser print dialog for PDF, and still exports editable Excalidraw JSON. Images placed on the canvas are saved with the project and restored on reload; a project is limited to 3 MB, including embedded images. **Share read-only link** publishes the latest saved canvas at a secret URL. The shared view refreshes every 15 seconds, and **Stop sharing** revokes the link. Command logs and private diagram decisions are excluded from the shared response.
+| Goal | Say |
+| --- | --- |
+| Build a system | “Create a frontend, API gateway, authentication service, and PostgreSQL database.” |
+| Connect components | “Connect the frontend to the API gateway and the API gateway to authentication.” |
+| Edit spatially | “Move the database below the authentication service.” |
+| Correct yourself | “No, put it above the authentication service instead.” |
+| Work with history | “Undo.” or “Go back.” |
+| Improve the result | “Review this diagram.” · “Make this easier to read.” · “Style this diagram.” |
 
-Built for developers and students who want to explain a system out loud while building its diagram. Gnani Prisma handles speech recognition; validated actions keep the canvas editable across successive instructions.
+Short, explicit edits on Architecture and Mixed canvases use the local parser. More complex requests use the configured planner. Command Activity shows speech, recognition, planning, scene, and view timing.
 
-- [One-page solution pitch (PDF)](output/pdf/voxraft-solution-pitch.pdf) · [Text version](docs/solution-pitch.md)
-- [Hackathon submission text, 2–3 minute demo script, and interview preparation](docs/submission.md)
-- [Measured evaluation report](docs/evaluation-2026-11-15.md)
-- [Agent memory and orchestration design](docs/agent-memory.md)
-- [Render deployment and production checks](docs/deployment.md)
+## The canvas understands structure
 
-![Voxraft architecture canvas](docs/demo-screenshot.png)
+| Diagram type | Default behavior |
+| --- | --- |
+| Architecture | Components, databases, directed dependencies, review insights |
+| Flowchart | Start/end ellipses, process blocks, decisions, labeled branches, loops |
+| Mind map | Central topic, branches, reparenting, arrowless relationships |
+| Hierarchy | Parent-child edges and top-down layout |
+| Brainstorming | Independent notes and optional associations |
+| Mixed | Multiple typed regions and containers on one canvas |
 
-## Run
+Voxraft preserves manual positions and styles unless a command explicitly changes them. Diagram conversion opens a preview before applying shape, relationship, or layout changes.
+
+## How a command becomes a diagram
+
+```mermaid
+flowchart LR
+    A[Microphone] --> B[Gnani streaming STT]
+    B --> C[Completed transcript]
+    C --> D{Simple edit?}
+    D -->|Yes| E[Local parser]
+    D -->|No| F[AI planner]
+    E --> G[Validated actions]
+    F --> G
+    G --> H[Reference resolution]
+    H --> I[Atomic scene update]
+    I --> J[Editable Excalidraw canvas]
+```
+
+The browser sends 16 kHz mono PCM to FastAPI over WebSocket. Only completed transcript segments enter the serial command queue. Proposed actions are schema-validated, resolved against the current scene, and committed as one undoable edit.
+
+## Quick start
+
+### Requirements
+
+- Node.js 20+
+- Python 3.11+
+- [`uv`](https://docs.astral.sh/uv/) for Python dependencies
+- FFmpeg for REST transcription fallback
+
+### Frontend
 
 ```bash
 npm install
 npm run dev
 ```
 
-In another terminal, start the local SQLite backend:
+### Backend
+
+In a second terminal:
 
 ```bash
 cd backend
@@ -58,58 +111,115 @@ test -f .env || cp .env.example .env
 uv run uvicorn main:app --reload --env-file .env
 ```
 
-To use the linked Neon `production` branch instead, keep the Neon-generated `.env.local` in the repository root and run `npm run dev:api:neon` from that root. This loads the existing `backend/.env` settings and the Neon `DATABASE_URL` and `DATABASE_URL_UNPOOLED` without copying credentials. Run `npm run dev` in the other terminal. The app uses the pooled URL for requests and the direct URL for schema initialization.
+Open <http://localhost:5173>. Microphone access requires localhost or HTTPS.
 
-Open http://localhost:5173 on the computer running Vite. Microphone capture requires localhost or HTTPS; the HTTP LAN address shown by Vite does not expose the browser microphone API. Text commands work without credentials. For voice use, install FFmpeg and set `GNANI_API_KEY` in the backend environment. Copy `backend/.env.example` to configure Gnani and the OpenAI diagram planner. Set `OPENAI_API_KEY`; diagram generation and command planning default to `gpt-5.4-mini` and can be changed independently with `OPENAI_GENERATION_MODEL` and `OPENAI_PLANNER_MODEL`. Review, layout, design, and intent agents use `OPENAI_MODEL` (default `gpt-4o-mini`). The local parser handles basic commands when no planner is configured. If a configured planner fails, Voxraft reports the failure instead of applying a potentially different local interpretation.
+Text commands and starter templates work without provider credentials. Add `GNANI_API_KEY` for speech and `OPENAI_API_KEY` for complex planning, generation, and agent-assisted suggestions.
 
-Click **Start voice** once and wait for **Listening** before speaking; audio is not sent while the status says **Connecting**. Interim recognized words appear in the voice status, but only completed utterances change the diagram. Gnani's realtime VAD marks completed utterances. Voxraft applies each completed command in order while the microphone remains active. **Stop voice** closes the WebSocket, cancels pending edits, and releases the microphone. If realtime streaming disconnects repeatedly, the continuous session switches to browser VAD segmentation and the existing Gnani REST transcription endpoint automatically. REST fallback uses about 1.1 seconds of silence as the utterance boundary; brief pauses stay inside one instruction. Both voice paths default to English (`en-IN`); `GNANI_LANGUAGE` can pin another supported locale. `GNANI_MOCK_TRANSCRIPT` applies only to REST fallback testing, not realtime streaming.
+## Configuration
 
-Click one node on the canvas, then say or type commands such as **“make this green”**, **“rename this to Auth Service”**, or **“connect this to the database.”** Voxraft uses the selected node's stable ID. When a reference matches several nodes, the edit stays pending and Voxraft asks which one you mean. Reply with its name or an ordinal such as **“second one”**; say **“cancel”** to discard the pending edit. These follow-up replies work in both continuous voice and text mode. If a clarification is spoken aloud, speak over it to stop the speech and give your answer.
+Copy [`backend/.env.example`](backend/.env.example) to `backend/.env`.
 
-History and preview controls also work by voice or text: **“undo”**, **“go back one step”**, **“revert the last change”**, **“redo”**, and **“do it again”**. After a Design, Critique, or Review preview appears, say **“apply design”**, **“apply layout”**, or **“apply review”**; **“discard design”** dismisses the proposal. **“Apply that suggestion”** works when only one proposal is waiting.
+| Variable | Purpose | Required |
+| --- | --- | --- |
+| `GNANI_API_KEY` | Streaming and REST speech recognition | For voice |
+| `GNANI_LANGUAGE` | Recognition locale; defaults to `en-IN` | No |
+| `OPENAI_API_KEY` | Complex planning and diagram generation | For AI features |
+| `AUTH_SECRET_KEY` | Signs account sessions; minimum 32 characters | Production |
+| `DATABASE_URL` | PostgreSQL connection; SQLite is used when absent | Production |
+| `DATABASE_URL_UNPOOLED` | Direct PostgreSQL connection for schema setup | Recommended |
+| `VOICE_ALLOWED_ORIGINS` | Additional allowed HTTPS voice origins | Custom domains |
 
-Canvas references are checked against the current scene. Try **“Make the rightmost database orange”**, **“Connect all services inside Backend to Main database”**, or **“Move all blocks inside Backend below Main database.”** Container scopes include nested members, even when collapsed. Service/database filters use those words in block labels; use **“blocks”** for every member. Spatial ties ask for clarification. Group moves preserve spacing, and a bulk edit is one undo step. The planner receives current geometry, styles, directed neighbors, container ancestry, and the last unchanged command; it proposes incremental actions using existing IDs.
+AgentRouter and generic OpenAI-compatible endpoints are also supported; see the example environment file for their variables.
 
-Shapes are available through commands such as **“Create an ellipse called Start”**, **“Make Payment approved a diamond”**, and **“Make PostgreSQL database a cylinder.”** The cylinder is a grouped Excalidraw drawing backed by one editable scene node. Labels fit each shape; arrows meet their outlines on the canvas and in previews. Shape changes keep node IDs, connections, membership, and undo history. Say **“Suggest meaningful shapes”** to review shape changes with reasons, then **“Apply shapes”** or **“Discard shapes.”** This changes only shapes. Ordinary **“Style this diagram”** requests preserve user-chosen shapes. **“Reconsider my shape choices”** permits a new shape proposal to revise them. Current suggestions cover explicit decisions, workflow start/end labels, and named databases; actors, queues, and clouds are planned later.
+## Product capabilities
 
-Shift-click to select multiple blocks, then say **“move these below the gateway”** or **“make these services blue.”** A group command such as **“group Auth and Orders as backend services”** saves membership; later commands can target **“backend services.”** Select an arrow to say **“label this connection HTTPS”** or **“reverse that arrow.”** You can also say **“disconnect Auth from Database.”** Edge labels appear on the canvas and stay in saved projects. To correct the last applied command, say **“Wait, no, connect Auth to PostgreSQL”** or **“I meant the backup database.”** The planner replans against the scene before that command, replacing its result as one undoable edit. Corrections require a configured AI planner.
+<details>
+<summary><strong>Voice sessions and recovery</strong></summary>
 
-Once a region exists, valid commands apply immediately, including multi-block creation and deletion. Voxraft asks a follow-up when a reference or required relationship detail is ambiguous. In Architecture, when three components connect to one database, a **Design insight** suggests reviewing replica or failover needs; **Highlight** selects the related elements without changing the diagram. Click **Review** or say **“Review this diagram”** to run the Architecture Review Agent. With an AI planner configured, it chooses up to two read-only graph tools and returns one finding tied to real components; without one, it clearly labels the rule-based review. You can highlight the evidence or accept an **Add replica** proposal as one undoable edit. A stale proposal cannot apply after the diagram changes. Click **Critique** or say **“Make this easier to read”** to compare the current arrangement with layered and grid layouts. The Layout Critic Agent groups connected blocks, keeps isolated blocks aside, and measures overlaps, connections through other blocks, crossings, edge length, and spread. It shows a routed-arrow preview and score before you apply the positions as one undoable edit. Arrow and label styling stays neutral until you request it. Click **Design** or say **“Style this diagram”** to run the Visual Design Agent. It inspects component roles, named groups, and connection targets, then previews proposed colors and fonts. **Apply design** changes the diagram in one undoable edit; **Discard** leaves it unchanged. With a configured model, the agent chooses read-only inspection tools; without one, the proposal is labeled as diagram rules. With a configured model it chooses from measured candidates; otherwise measured rules select the best candidate. **“Arrange the diagram”** and similar phrases open the same Critique preview; the layered arrangement remains one candidate. Command Activity records approximate speech-to-transcript, planner, scene edit, and next-view timings. The realtime voice connection sends up to 40 current node and group names plus common architecture terms to Gnani as key terms when a session starts or reconnects; restart a session to include newly created names. REST transcription also sends key terms with Prisma v3.
+- Realtime streaming uses Gnani Prisma through a backend relay, keeping credentials off the client.
+- Segment IDs suppress duplicate execution, and a serial queue preserves command order.
+- Incomplete fragments such as “Move the” wait briefly for their continuation instead of executing early.
+- Repeated streaming failures switch the session to browser VAD and REST transcription.
+- Spoken clarification questions can be interrupted by speaking the answer.
 
-The **dashboard** creates diagrams. Each diagram's menu can rename, delete, or download its JSON project file with the canonical scene, undo/redo history, and command activity. The editor keeps Excalidraw's canvas tools visible, with compact **Assist** and **Details** menus and a command dock. Its **More** menu contains **Clear canvas** (undoable) and **Export Excalidraw**. The editor autosaves each diagram to the account, with a browser recovery copy scoped to that diagram.
+</details>
+
+<details>
+<summary><strong>Editing and reference resolution</strong></summary>
+
+- Select one or more blocks and refer to “this,” “these,” or spatial descriptions.
+- Rename, recolor, reshape, move, connect, disconnect, reverse, or label diagram elements.
+- Ambiguous names retain candidate IDs and request clarification.
+- Corrections replace the most recent unchanged edit as one history step.
+- Undo and redo restore full scene snapshots.
+
+</details>
+
+<details>
+<summary><strong>Containers, scopes, and diagram conversion</strong></summary>
+
+- Visible containers can move, nest, collapse, expand, and keep their own diagram type.
+- A block uses the nearest container’s diagram rules.
+- Cross-type connections require an explicit relationship.
+- Architecture, Flowchart, Mind map, Hierarchy, Brainstorming, and Mixed conversions are previewed before applying.
+
+</details>
+
+<details>
+<summary><strong>Review, layout, and visual design</strong></summary>
+
+- **Review** finds structural issues tied to real blocks and connections.
+- **Critique** compares measured layout candidates before moving anything.
+- **Design** previews role-aware colors, fonts, and meaningful shape suggestions.
+- Every proposal can be applied or discarded; stale proposals cannot modify a changed scene.
+
+</details>
+
+<details>
+<summary><strong>Accounts, persistence, sharing, and export</strong></summary>
+
+- Private diagrams autosave to the account with a browser recovery copy.
+- Local development uses SQLite; production can use PostgreSQL.
+- Read-only share links omit private command logs and diagram decisions and can be revoked.
+- Export PNG, SVG, PDF, project JSON, or editable Excalidraw JSON.
+
+</details>
 
 ## Architecture
 
-`/api/voice/stream` relays 16 kHz mono signed 16-bit little-endian PCM frames (1024 bytes, about 32 ms) from the browser to Gnani's realtime WebSocket using the official Python SDK. Gnani credentials stay in FastAPI. Only final transcript events enter the ordered command queue; segment IDs prevent duplicate execution. The relay reconnects after Gnani failures, and the browser reconnects if its relay connection closes. The browser waits up to 16 seconds for readiness, longer than the relay's 12-second Gnani connection deadline. For a deployed frontend, set `VOICE_ALLOWED_ORIGINS` to its origin. `POST /api/transcribe` supports automatic REST fallback; it accepts multipart `audio`, converts it to 16 kHz mono WAV with an asynchronous FFmpeg subprocess, and submits it to Gnani's `/stt/v3` endpoint. `POST /api/plan` accepts command text, nodes, edges and recent IDs. With an OpenAI key, it calls Chat Completions with a strict JSON action schema; AgentRouter and a generic OpenAI-compatible endpoint remain optional alternatives. The browser validates the returned action array with Zod, resolves references against the current scene, and commits the whole batch only if every action succeeds. Undo and redo restore snapshots. Manual Excalidraw edits synchronize into the canonical scene.
+| Layer | Technology | Responsibility |
+| --- | --- | --- |
+| Editor | React, TypeScript, Excalidraw | Canvas rendering, selection, command UX, local validation |
+| Scene engine | TypeScript, Zod | Stable IDs, actions, references, containers, history |
+| API | FastAPI | Authentication, projects, planner endpoints, sharing, quotas |
+| Speech | Gnani Prisma, FFmpeg | Realtime STT and recorded-audio fallback |
+| Planner | OpenAI or compatible endpoint | Complex scene-aware commands and generation |
+| Storage | SQLite or PostgreSQL | Accounts, sessions, diagrams, shares, rate limits |
 
-The deterministic parser covers the demo commands and basic English phrasing. Free-form or complex English commands require an LLM endpoint. The app requests clarification when node references are ambiguous; it never guesses among multiple matches.
+For deeper implementation notes, see [agent memory and orchestration](docs/agent-memory.md), [semantic shapes](docs/semantic-shapes.md), and [deployment](docs/deployment.md).
 
-## Visible containers
-
-Select two or more blocks and click **Contain selected blocks** in the sidebar, or type **“Put Auth and Orders inside Backend”**. A dashed frame appears around those blocks. Drag its border to move the contained blocks together. Containers are separate from named groups: one block can belong directly to only one visible container.
-
-Use **“Add Billing to Backend container”**, **“Remove Orders from Backend container”**, **“Move Backend container right”**, and **“Rename Backend container to Platform”** to manage it. **“Nest Backend container inside Platform container”** creates a deeper boundary; **“Create Platform container containing Backend container”** creates a new parent. **“Collapse Backend container”** hides its members and routes outside connections to the visible frame; **“Expand Backend container”** restores them. The sidebar also has Collapse/Expand buttons. **“Unnest Backend container”** removes its parent link, while **“Dissolve Backend container”** removes only that boundary; blocks and connections remain. Each command is undoable. Saved projects retain membership, nesting, collapse state, and visual styles. Layout Critic moves top-level containers as units, and Visual Design can style a boundary when its name gives a clear role. It leaves unknown boundary roles neutral.
-
-## Demo script
-
-1. Create a frontend, a FastAPI backend and a PostgreSQL database
-2. Connect frontend to backend
-3. Connect backend to database
-4. Insert Redis between backend and database
-5. Move Redis above database
-6. Rename backend to Authentication Service
-7. Undo
-8. Make database orange
-
-## Tests
+## Quality checks
 
 ```bash
-npm run typecheck && npm test && npm run build
-cd backend && uv run pytest -q
+npm run typecheck
+npm test
+npm run build
+
+cd backend
+uv run pytest -q
 ```
 
-If backend tests stall at `TestClient` startup in a restricted execution sandbox, run them in a normal local terminal or with sandbox permission for local sockets. The sandbox can block AnyIO's cross-thread event-loop wakeup even without application code. This is an execution-environment limitation, not a reason to disable the tests or change the server.
+Run the local parser latency benchmark without external provider calls:
 
-Tests cover successive commands, ordering, silence, duplicate completed events, partial transcripts, brief pauses, stop cleanup, WebSocket reconnect, generation validation, image file recovery, and share revocation. A previous live relay test sent a prerecorded speech clip through the FastAPI WebSocket to Gnani Prisma v3 and received two completed English utterances. Local microphone trials and their timing limits are recorded in the evaluation report; the deployed HTTPS microphone path still needs checking. When Gnani's opening handshake times out, the session uses automatic REST fallback.
+```bash
+cd backend
+./.venv/bin/python benchmark_latency.py --samples 20
+```
 
-Run the saved planner replay cases with `cd backend && uv run --env-file .env python replay.py`. The suite checks real commands against the configured LLM, so it uses the provider API and may incur charges. Use `--case "spatial language"` to run one case. The ordinary unit tests validate the replay comparator without calling the provider.
+The dated [evaluation report](docs/evaluation-2026-11-15.md) records planner replay results, browser scenarios, real microphone timings, security checks, and measurement limits.
+
+## Project status
+
+Voxraft is a personal project under active development. The current voice experience is English-first, complex edits depend on a configured planner, and collaborative real-time editing is not implemented yet.
+
+The production app is deployed on AWS Lightsail. Pushes to `main` run frontend and backend checks, build the container, and deploy through a self-hosted runner.
