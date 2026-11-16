@@ -60,6 +60,7 @@ def test_mindmap_root_followup_does_not_intercept_a_correction(monkeypatch):
 
 def test_fallback_multi_turn():
     assert len(fallback('Create a frontend, a FastAPI backend and a PostgreSQL database')) == 3
+    assert [action['label'] for action in fallback('Create a frontend, an API gateway, an auth service, an order service, and a PostgreSQL database')] == ['frontend', 'API gateway', 'auth service', 'order service', 'PostgreSQL database']
     assert fallback('Connect backend to database')[0]['type'] == 'ADD_EDGE'
     assert len(fallback('Connect frontend to backend and backend to database')) == 2
     assert fallback('Insert Redis between backend and database')[0]['type'] == 'INSERT_BETWEEN'

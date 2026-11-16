@@ -484,7 +484,7 @@ def fallback(text: str) -> list[dict[str, Any]]:
     if m: return [{"type": "UPDATE_NODE", "target": clean(m[1]), "color": m[2].lower()}]
     m = re.search(r"(?:create|add|make|banao)\s+(.+)$", text, re.I)
     if m:
-        parts = re.split(r",\s*|\s+and\s+", m[1], flags=re.I)
+        parts = re.split(r",\s*(?:and\s+)?|\s+and\s+", m[1], flags=re.I)
         return [{"type": "ADD_NODE", "label": clean(p)} for p in parts if clean(p)]
     raise ValueError("I couldn't parse that command. Try an example or configure an LLM.")
 
