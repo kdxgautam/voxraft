@@ -1,0 +1,16 @@
+name: Repair production SSH
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  allow-current-ip:
+    name: Allow current operator IP
+    runs-on: [self-hosted, linux, x64, voxraft-prod]
+    environment: production
+    timeout-minutes: 2
+    steps:
+      - name: Update UFW allowlist
+        run: sudo --non-interactive /usr/sbin/ufw allow from 103.82.78.70 to any port 22 proto tcp
