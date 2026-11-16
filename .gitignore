@@ -19,5 +19,6 @@ backend/data/
 .codex/
 .playwright-cli/
 output/playwright/
+output/video/
 skills-lock.json
 .aws/
