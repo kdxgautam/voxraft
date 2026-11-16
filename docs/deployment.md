@@ -2,7 +2,7 @@
 
 The production container serves the built React app and FastAPI from one HTTPS origin. Browser calls to `/api/plan`, `/api/transcribe`, and `/api/voice/stream` therefore work without a separate frontend URL or proxy configuration. FFmpeg is included for recorded-audio transcription.
 
-**Current status:** Voxraft is live on AWS Lightsail at <https://voxraft.16-4-87-134.nip.io>. Pushes to `main` run the frontend and backend checks, build a verified production image, and deploy it through the self-hosted production runner. Render is not used by the current deployment.
+**Current status:** No production host is currently configured. Pushes and pull requests run the frontend and backend checks and verify the production container build.
 
 ## Optional Render setup
 
@@ -50,7 +50,7 @@ Each signed-in account can hold up to 50 projects in Neon Postgres. A second bro
 
 | Symptom | Check |
 | --- | --- |
-| Loading screen after inactivity on Render | Wait for the free Render instance to wake. The current Lightsail deployment stays running. |
+| Loading screen after inactivity on Render | Wait for the free Render instance to wake. |
 | Voice immediately switches to REST | Check `GNANI_API_KEY`, provider connectivity, and the WebSocket origin. The relay accepts the exact Render URL or an explicitly configured origin. |
 | Microphone unavailable | Open the HTTPS app directly and allow browser microphone access. |
 | Planner failure | Check the configured planner credentials and quota. A configured planner failure is surfaced to avoid silently interpreting a command differently. |

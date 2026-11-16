@@ -11,7 +11,7 @@ Voice-controlled diagrams on an editable Excalidraw canvas.
 [![FastAPI](https://img.shields.io/badge/FastAPI-Python-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Excalidraw](https://img.shields.io/badge/Canvas-Excalidraw-6965DB?style=flat-square)](https://excalidraw.com/)
 
-[Live app](https://voxraft.16-4-87-134.nip.io) · [Watch the 59-second demo](output/video/voxraft-demo-under-one-minute.mp4) · [Evaluation](docs/evaluation-2026-11-15.md) · [Deploy](docs/deployment.md)
+[Watch the 59-second demo](output/video/voxraft-demo-under-one-minute.mp4) · [Evaluation](docs/evaluation-2026-11-15.md) · [Deploy](docs/deployment.md)
 
 </div>
 
@@ -222,4 +222,4 @@ The dated [evaluation report](docs/evaluation-2026-11-15.md) records planner rep
 
 Voxraft is a personal project under active development. The current voice experience is English-first, complex edits depend on a configured planner, and collaborative real-time editing is not implemented yet.
 
-The production app is deployed on AWS Lightsail. Pushes to `main` run frontend and backend checks, build the container, and deploy through a self-hosted runner.
+Pushes and pull requests run frontend and backend checks and verify the production container build. No production host is currently configured.
