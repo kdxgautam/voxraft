@@ -222,4 +222,4 @@ The dated [evaluation report](docs/evaluation-2026-11-15.md) records planner rep
 
 Voxraft is a personal project under active development. The current voice experience is English-first, complex edits depend on a configured planner, and collaborative real-time editing is not implemented yet.
 
-Pushes and pull requests run frontend and backend checks and verify the production container build. No production host is currently configured.
+Pushes and pull requests run frontend and backend checks and verify the production container build. Google Cloud Run is the production deployment target; no production host is currently configured.

@@ -90,16 +90,15 @@ def test_language_uses_configured_english_and_has_english_default(monkeypatch):
 
 
 def test_hosted_voice_origin_is_restricted(monkeypatch):
-    monkeypatch.setenv('RENDER_EXTERNAL_URL', 'https://bolcanvas-example.onrender.com/')
-    monkeypatch.setenv('VOICE_ALLOWED_ORIGINS', 'https://canvas.example.com')
-    assert relay.allowed_origin('https://bolcanvas-example.onrender.com')
+    monkeypatch.setenv('VOICE_ALLOWED_ORIGINS', 'https://voxraft-example.a.run.app, https://canvas.example.com')
+    assert relay.allowed_origin('https://voxraft-example.a.run.app')
     assert relay.allowed_origin('https://canvas.example.com')
     assert relay.allowed_origin('http://localhost:5173', 'localhost:8000')
     assert relay.allowed_origin('http://127.0.0.1:5174', 'localhost:8000')
     assert not relay.allowed_origin('http://127.0.0.1:5174', 'canvas.example.com')
     assert not relay.allowed_origin('https://127.0.0.1:5174', 'localhost:8000')
-    assert not relay.allowed_origin('https://another-app.onrender.com')
-    assert not relay.allowed_origin('https://bolcanvas-example.onrender.com.attacker.example')
+    assert not relay.allowed_origin('https://another-service.a.run.app')
+    assert not relay.allowed_origin('https://voxraft-example.a.run.app.attacker.example')
     assert not relay.allowed_origin(None)
 
 

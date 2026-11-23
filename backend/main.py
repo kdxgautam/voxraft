@@ -3,6 +3,7 @@ import json
 import os
 import re
 import subprocess
+from collections.abc import Callable
 from contextlib import asynccontextmanager, nullcontext
 from typing import Any, Literal
 
@@ -81,11 +82,21 @@ async def reject_cross_origin_writes(request: Request, call_next):
     if request.url.path.startswith('/api/') and request.method not in ('GET', 'HEAD', 'OPTIONS'):
         origin = request.headers.get('origin')
         allowed = {f'{request.url.scheme}://{request.headers.get("host", "")}', 'http://localhost:5173', 'http://127.0.0.1:5173'}
-        if os.getenv('RENDER_EXTERNAL_URL'):
-            allowed.add(os.environ['RENDER_EXTERNAL_URL'].rstrip('/'))
         if origin and origin not in allowed:
             return JSONResponse({'detail': 'This request must come from Voxraft.'}, status_code=403)
     return await call_next(request)
+
+
+@app.middleware('http')
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.scheme == 'https':
+        response.headers['Strict-Transport-Security'] = 'max-age=31536000'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    response.headers['Permissions-Policy'] = 'camera=(), geolocation=(), microphone=(self)'
+    response.headers['Content-Security-Policy'] = "frame-ancestors 'none'"
+    return response
 
 
 @app.get("/api/health")
@@ -670,7 +681,7 @@ def quick_canvas_actions(request: PlanRequest) -> list[dict[str, Any]] | None:
     return None
 
 
-async def llm_plan_detail(request: PlanRequest) -> tuple[list[dict[str, Any]], str, str | None]:
+async def llm_plan_detail(request: PlanRequest, before_model: Callable[[], None] | None = None) -> tuple[list[dict[str, Any]], str, str | None]:
     if not request.pending_command and not request.revision_of:
         history = history_command(request.text)
         if history is not None:
@@ -695,6 +706,8 @@ async def llm_plan_detail(request: PlanRequest) -> tuple[list[dict[str, Any]], s
         if request.pending_command:
             return [], "fallback", "Please repeat the full command with the missing detail included."
         return fallback(request.text), "fallback", None
+    if before_model:
+        before_model()
     system = ("You plan edits to a diagram. Return ONLY a JSON object with actions and question (null unless asking). "
               "Allowed types: ADD_NODE {label,shape?,role?,color?,container?}, ADD_EDGE {source,target,label?,relation?,arrowhead?}, "
               "DELETE_EDGE {edge? or source,target}, REVERSE_EDGE {edge? or source,target}, "
@@ -782,11 +795,15 @@ async def llm_plan(request: PlanRequest) -> tuple[list[dict[str, Any]], str]:
     return actions, mode
 
 
-@app.post("/api/plan", dependencies=[Depends(ai_quota)])
+@app.post("/api/plan")
 async def plan(request: PlanRequest, user: dict = Depends(require_user)):
+    account = user if isinstance(user, dict) else None
+    if account:
+        check_rate_limit(f'plan:{account["id"]}', 600, 3600)
+        check_rate_limit('plan:global', 3000, 3600)
     # Follow-up text belongs to the pending edit, even when it resembles a new command.
     if request.pending_command or request.revision_of:
-        return await planned_command(request)
+        return await planned_command(request, account)
     command = request.text.strip().rstrip('.!')
     if not request.pending_command and not request.revision_of:
         try:
@@ -887,14 +904,14 @@ async def plan(request: PlanRequest, user: dict = Depends(require_user)):
             pass
         else:
             try:
-                inferred = await suggest(request.text, request.nodes, app.state.planner_client if hasattr(app.state, 'planner_client') else None, request.last_command, [item.get('intentType') for item in request.containers if item.get('intentType')])
+                inferred = await suggest(request.text, request.nodes, app.state.planner_client if hasattr(app.state, 'planner_client') else None, request.last_command, [item.get('intentType') for item in request.containers if item.get('intentType')], (lambda: ai_quota(account)) if account else None)
             except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
                 raise HTTPException(502, f'Intent review failed: {exc}') from exc
             return {'actions': [], 'mode': inferred['mode'], 'intent_suggestion': inferred}
-    return await planned_command(request)
+    return await planned_command(request, account)
 
 
-async def planned_command(request: PlanRequest):
+async def planned_command(request: PlanRequest, user: dict | None = None):
     if request.diagram_context.get('type') == 'mindmap' and not request.diagram_context.get('rootId') and request.pending_command and not request.revision_of:
         try:
             pending_actions = fallback(request.pending_command)
@@ -906,7 +923,8 @@ async def planned_command(request: PlanRequest):
             if not central:
                 return {'actions': [], 'mode': 'fallback', 'question': 'Which of those topics should be central? Please use its exact name.'}
             return {'actions': [central, *(action for action in pending_actions if action is not central)], 'mode': 'fallback'}
-    try: actions, mode, question = await llm_plan_detail(request)
+    try:
+        actions, mode, question = await llm_plan_detail(request, lambda: ai_quota(user)) if user else await llm_plan_detail(request)
     except ValueError as exc: raise HTTPException(422, str(exc)) from exc
     if request.diagram_context.get('type') == 'mindmap' and not request.diagram_context.get('rootId') and not request.pending_command and sum(action.get('type') == 'ADD_NODE' for action in actions) > 1:
         return {'actions': [], 'mode': mode, 'question': 'Which topic should be the central topic?'}

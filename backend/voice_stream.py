@@ -56,7 +56,6 @@ def allowed_origin(origin: str | None, host: str | None = None) -> bool:
     if not origin:
         return False
     configured = {item.strip() for item in os.getenv("VOICE_ALLOWED_ORIGINS", "").split(",") if item.strip()}
-    configured.add(os.getenv("RENDER_EXTERNAL_URL", "").rstrip("/"))
     if origin in configured:
         return True
     parsed = urlparse(origin)

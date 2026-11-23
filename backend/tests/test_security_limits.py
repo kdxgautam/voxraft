@@ -49,7 +49,7 @@ def test_body_limit_before_parsing(tmp_path, monkeypatch):
     asyncio.run(check())
 
 
-def test_public_signup_and_ai_routes_enforce_limits(tmp_path, monkeypatch):
+def test_public_signup_limit_and_local_plans(tmp_path, monkeypatch):
     monkeypatch.setenv('BOLCANVAS_DB_PATH', str(tmp_path / 'limits.sqlite3'))
     monkeypatch.setenv('AUTH_SECRET_KEY', 'test-secret-' * 8)
     with TestClient(app) as client:
@@ -60,6 +60,36 @@ def test_public_signup_and_ai_routes_enforce_limits(tmp_path, monkeypatch):
         with auth.connect() as db:
             auth.execute(db, 'DELETE FROM request_limits')
         assert client.post('/api/auth/sign-up', json={'email':'good@example.test','password':'long-test-password'}).status_code == 201
-        for _ in range(60):
+        for _ in range(61):
             assert client.post('/api/plan', json={'text':'Add Redis'}).status_code == 200
-        assert client.post('/api/plan', json={'text':'Add Redis'}).status_code == 429
+
+
+def test_local_plans_do_not_spend_model_quota(tmp_path, monkeypatch):
+    import main
+
+    monkeypatch.setenv('BOLCANVAS_DB_PATH', str(tmp_path / 'limits.sqlite3'))
+    monkeypatch.setenv('AUTH_SECRET_KEY', 'test-secret-' * 8)
+    monkeypatch.setenv('OPENAI_API_KEY', 'test-key')
+    auth.init_db()
+
+    class Planner:
+        async def post(self, url, **kwargs):
+            return httpx.Response(200, request=httpx.Request('POST', url),
+                                  json={'choices': [{'message': {'content': '{"actions":[],"question":"Which part?"}'}}]})
+
+    monkeypatch.setattr(main.app.state, 'planner_client', Planner(), raising=False)
+
+    async def check():
+        user = {'id': 'test-account'}
+        local = main.PlanRequest(text='Add Redis', diagram_context={'type': 'architecture'})
+        complex_command = main.PlanRequest(text='Could you diagram the dependencies?', diagram_context={'type': 'architecture'})
+        for _ in range(61):
+            assert (await main.plan(local, user))['mode'] == 'fallback'
+        for _ in range(60):
+            assert (await main.plan(complex_command, user))['mode'] == 'llm'
+        with pytest.raises(auth.HTTPException) as denied:
+            await main.plan(complex_command, user)
+        assert denied.value.status_code == 429
+        assert (await main.plan(local, user))['mode'] == 'fallback'
+
+    asyncio.run(check())

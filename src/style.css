@@ -56,12 +56,13 @@
 .editor-dock .dock-voice:disabled{opacity:.55;cursor:not-allowed}
 .editor-dock .dock-voice:focus-visible,.editor-actions .editor-add-diagram:focus-visible{outline:3px solid #65b893;outline-offset:3px}
 .editor-dock .command-input{padding:2px 0}
+.editor-dock .command-input input:focus-visible{outline:2px solid #206d53;outline-offset:2px;border-radius:3px}
 .editor-dock .command-input input::placeholder{color:#899a9b}
 .editor-dock .command-bar.is-empty{box-shadow:0 16px 42px #1434252c}
 .editor-actions .editor-add-diagram svg{display:block}
 @media(max-width:760px){.editor-dock .command-bar{gap:7px}.editor-dock .dock-voice{min-height:46px;padding:0 11px;font-size:12px}.editor-dock .dock-voice svg{width:17px;height:17px}.editor-dock .command-input input{font-size:12px}.editor-actions .editor-add-diagram svg{display:block}}
 @media(max-width:420px){.editor-dock .dock-voice{gap:6px;padding:0 9px}.editor-dock .dock-voice span{max-width:72px;line-height:1.05;text-align:left}.editor-dock .command-input label{font-size:10px}}
-@media(max-width:420px){.editor-dock .command-bar.is-empty{display:grid;grid-template-columns:minmax(0,1fr) 30px;gap:8px 10px}.editor-dock .command-bar.is-empty .dock-voice{grid-column:1/-1;width:100%;justify-content:center}.editor-dock .command-bar.is-empty .dock-voice span{max-width:none;white-space:nowrap}.editor-dock .command-bar.is-empty .dock-separator{display:none}.editor-dock .command-bar.is-empty .command-input{grid-column:1}.editor-dock .command-bar.is-empty .dock-activity{grid-column:2;grid-row:2}}
+@media(max-width:420px){.editor-actions .editor-add-diagram{width:34px;padding:0;justify-content:center;font-size:0;white-space:nowrap}.editor-dock .command-bar{display:grid;grid-template-columns:minmax(0,1fr) 30px;gap:8px 10px}.editor-dock .command-bar .dock-voice{grid-column:1/-1;width:100%;justify-content:center}.editor-dock .command-bar .dock-voice span{max-width:none;white-space:nowrap}.editor-dock .command-bar .dock-separator{display:none}.editor-dock .command-bar .command-input{grid-column:1}.editor-dock .command-bar .dock-activity{grid-column:2;grid-row:2}}
 
 /* The canvas remains transparent so the dot field stays behind every shape. */
 .editor-workspace .canvas-wrap{background-color:#fbfdfe;background-image:radial-gradient(circle,#bfdae8 1px,transparent 1.2px);background-size:17px 17px;background-position:8px 8px}

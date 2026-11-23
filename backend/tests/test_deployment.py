@@ -9,7 +9,7 @@ def test_frontend_and_api_share_the_production_server(tmp_path):
     (tmp_path / 'pcm-worklet.js').write_text('// audio worklet')
     environment = {**os.environ, 'STATIC_DIR': str(tmp_path), 'AUTH_SECRET_KEY': 'test-secret-' * 8,
                    'BOLCANVAS_DB_PATH': str(tmp_path / 'accounts.sqlite3'),
-                   'RENDER_EXTERNAL_URL': 'https://testserver', 'VOICE_ALLOWED_ORIGINS': ''}
+                   'VOICE_ALLOWED_ORIGINS': 'https://testserver'}
     for key in ('OPENAI_API_KEY', 'AGENTROUTER_API_KEY', 'AgentRouter_API_KEY', 'LLM_BASE_URL', 'LLM_MODEL', 'GNANI_API_KEY'):
         environment.pop(key, None)
     # A fresh process tests the same import-time mount used by Uvicorn.
@@ -17,7 +17,13 @@ def test_frontend_and_api_share_the_production_server(tmp_path):
 from fastapi.testclient import TestClient
 from main import app
 with TestClient(app, base_url='https://testserver') as client:
-    assert client.get('/').text == '<html>BolCanvas deployment</html>'
+    homepage = client.get('/')
+    assert homepage.text == '<html>BolCanvas deployment</html>'
+    assert homepage.headers['strict-transport-security'] == 'max-age=31536000'
+    assert homepage.headers['x-content-type-options'] == 'nosniff'
+    assert homepage.headers['referrer-policy'] == 'strict-origin-when-cross-origin'
+    assert homepage.headers['permissions-policy'] == 'camera=(), geolocation=(), microphone=(self)'
+    assert homepage.headers['content-security-policy'] == "frame-ancestors 'none'"
     assert client.get('/pcm-worklet.js').text == '// audio worklet'
     assert client.get('/api/health').json() == {'status': 'ok'}
     response = client.post('/api/plan', json={'text': 'Add Redis'})

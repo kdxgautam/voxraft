@@ -1,5 +1,6 @@
 """Bounded, read-only diagram intent inference used before the first edit."""
 import re
+from collections.abc import Callable
 from typing import Any
 
 import httpx
@@ -67,7 +68,8 @@ def evidence(text: str) -> tuple[str | None, str]:
 
 
 async def suggest(text: str, nodes: list[dict[str, Any]], client: httpx.AsyncClient | None = None,
-                  recent_command: str | None = None, existing_types: list[str] | None = None) -> dict[str, Any]:
+                  recent_command: str | None = None, existing_types: list[str] | None = None,
+                  before_model: Callable[[], None] | None = None) -> dict[str, Any]:
     kind, reason = evidence(text)
     scoped = {item for item in existing_types or [] if item not in ('mixed', None)}
     if kind is None and recent_command:
@@ -82,6 +84,8 @@ async def suggest(text: str, nodes: list[dict[str, Any]], client: httpx.AsyncCli
         kind, reason = 'mixed', 'The canvas combines more than one diagram type.'
     if kind or not model_available():
         return {'type': kind, 'reason': reason, 'mode': 'rules'}
+    if before_model:
+        before_model()
     owned = client is None
     if owned:
         client = httpx.AsyncClient(timeout=25)

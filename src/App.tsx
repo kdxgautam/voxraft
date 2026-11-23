@@ -168,12 +168,12 @@ export default function App({projectId,storageId,projectName,initialProject,onPe
   useEffect(()=>{excalidraw.current?.updateScene({elements});},[elements]);
   useEffect(()=>{
     if(!visibleVisual&&!visibleLayout)return;
-    const timer=window.setTimeout(()=>excalidraw.current?.scrollToContent(undefined,{fitToViewport:true,viewportZoomFactor:0.9}),100);
+    const timer=window.setTimeout(()=>excalidraw.current?.scrollToContent(undefined,{fitToViewport:true,viewportZoomFactor:0.9,maxZoom:1.5}),100);
     return ()=>window.clearTimeout(timer);
   },[visibleVisual,visibleLayout]);
   useEffect(()=>{
     if(!sceneRef.current.nodes.length)return;
-    const timer=window.setTimeout(()=>excalidraw.current?.scrollToContent(undefined,{fitToViewport:true,viewportZoomFactor:0.9}),150);
+    const timer=window.setTimeout(()=>excalidraw.current?.scrollToContent(undefined,{fitToViewport:true,viewportZoomFactor:0.9,maxZoom:1.5}),150);
     return ()=>window.clearTimeout(timer);
   },[]);
   useEffect(()=>{
@@ -185,7 +185,7 @@ export default function App({projectId,storageId,projectName,initialProject,onPe
       compact=next;
       window.clearTimeout(timer);
       timer=window.setTimeout(()=>{
-        if(sceneRef.current.nodes.length)excalidraw.current?.scrollToContent(undefined,{fitToViewport:true,viewportZoomFactor:0.9});
+        if(sceneRef.current.nodes.length)excalidraw.current?.scrollToContent(undefined,{fitToViewport:true,viewportZoomFactor:0.9,maxZoom:1.5});
       },180);
     };
     window.addEventListener('resize',onResize);
@@ -248,7 +248,7 @@ export default function App({projectId,storageId,projectName,initialProject,onPe
       const next=moveFromCanvas(pending.scene,positions);
       sceneRef.current=next;setScene(next);setLayout(null);layoutRef.current=null;lastApplied.current=null;
       setMessage('Layout applied. Undo will restore the previous positions.');log('Accepted layout critique','info');
-      window.setTimeout(()=>excalidraw.current?.scrollToContent(undefined,{fitToViewport:true,viewportZoomFactor:0.7}),80);
+      window.setTimeout(()=>excalidraw.current?.scrollToContent(undefined,{fitToViewport:true,viewportZoomFactor:0.7,maxZoom:1.5}),80);
     }catch(error){setMessage(`Could not apply layout: ${error instanceof Error?error.message:String(error)}`);}
   };
   const runVisualDesign=async(signal?:AbortSignal,suggestShapes=false,reconsiderShapes=false)=>{
@@ -309,7 +309,7 @@ export default function App({projectId,storageId,projectName,initialProject,onPe
     requestAnimationFrame(()=>requestAnimationFrame(recordPaint));
     window.setTimeout(recordPaint,300);
     setText('');
-    if(next.nodes.length)setTimeout(()=>excalidraw.current?.scrollToContent(undefined,{fitToViewport:true,viewportZoomFactor:0.9}),80);
+    if(next.nodes.length)setTimeout(()=>excalidraw.current?.scrollToContent(undefined,{fitToViewport:true,viewportZoomFactor:0.9,maxZoom:1.5}),80);
   };
   const generateDiagram=async(description:string,kind:GeneratedType|'auto'='auto',signal?:AbortSignal)=>{
     if(generatingRef.current)return;
@@ -324,7 +324,7 @@ export default function App({projectId,storageId,projectName,initialProject,onPe
       sceneRef.current=next;setScene(next);setClarification(null);setText('');lastApplied.current=null;
       if(projectName==='Untitled diagram')void onAutoName(suggestedProjectName(description)).catch(error=>setMessage(`Diagram created, but its title could not be saved: ${error instanceof Error?error.message:String(error)}`));
       setMessage(`${diagramName(result.diagram_type)} added to this canvas.`);log(`Generated ${diagramName(result.diagram_type)} from description`,'command');
-      window.setTimeout(()=>excalidraw.current?.scrollToContent(undefined,{fitToViewport:true,viewportZoomFactor:0.9}),100);
+      window.setTimeout(()=>excalidraw.current?.scrollToContent(undefined,{fitToViewport:true,viewportZoomFactor:0.9,maxZoom:1.5}),100);
     }finally{generatingRef.current=false;setGenerating(false);}
   };
   const applyCommand=async(value:string,signal?:AbortSignal,confirmedIntent?:DiagramType)=>{

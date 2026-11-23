@@ -33,6 +33,20 @@ def test_explicit_intent_and_ambiguous_database():
     assert asyncio.run(suggest('Add another item', [], recent_command='Add a branch under Features'))['type'] == 'mindmap'
 
 
+def test_intent_quota_runs_only_for_model_inference(monkeypatch):
+    import intent_agent
+
+    calls = []
+    async def decision(messages, client):
+        return {'type': None, 'reason': 'Ambiguous request.'}
+    monkeypatch.setattr(intent_agent, 'model_available', lambda: True)
+    monkeypatch.setattr(intent_agent, 'model_decision', decision)
+    assert asyncio.run(suggest('Add an API gateway', [], before_model=lambda: calls.append('charged')))['mode'] == 'rules'
+    assert calls == []
+    assert asyncio.run(suggest('Add another item', [], before_model=lambda: calls.append('charged')))['mode'] == 'agent'
+    assert calls == ['charged']
+
+
 def test_mixed_intent_requires_evidence_of_multiple_types():
     from main import PlanRequest, plan
     assert explicit_start('Create a mixed canvas for planning') == ('mixed', 'planning', [])
