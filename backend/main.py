@@ -346,9 +346,11 @@ async def generate(request: GenerateRequest, user: dict = Depends(require_user))
         explicit = explicit_product_launch_mindmap(request.description)
         if explicit:
             return {'actions': explicit, 'diagram_type': 'mindmap', 'mode': 'fallback'}
-    openai_key = os.getenv('OPENAI_API_KEY', '')
-    agent_key = os.getenv('AGENTROUTER_API_KEY') or os.getenv('AgentRouter_API_KEY', '')
-    base, key, model = os.getenv('LLM_BASE_URL', '').rstrip('/'), os.getenv('LLM_API_KEY') or os.getenv('OPENROUTER_API_KEY', ''), os.getenv('LLM_MODEL', '')
+    openai_key = os.getenv('OPENAI_API_KEY', '').strip()
+    agent_key = (os.getenv('AGENTROUTER_API_KEY') or os.getenv('AgentRouter_API_KEY', '')).strip()
+    base = os.getenv('LLM_BASE_URL', '').strip().rstrip('/')
+    key = (os.getenv('LLM_API_KEY') or os.getenv('OPENROUTER_API_KEY', '')).strip()
+    model = os.getenv('LLM_MODEL', '').strip()
     if not openai_key and not agent_key and not (base and model): raise HTTPException(503, 'Diagram generation needs a configured AI planner.')
     kind_instruction = ('Choose the best diagram_type from flowchart, mindmap, hierarchy, architecture, or brainstorming based on the user description. '
                         if request.diagram_type == 'auto' else f'Use diagram_type {request.diagram_type}. ')
@@ -387,7 +389,7 @@ async def generate(request: GenerateRequest, user: dict = Depends(require_user))
                     if attempt: raise
                     messages.extend([{'role': 'assistant', 'content': content}, {'role': 'user', 'content': f'That diagram was invalid: {exc}. Regenerate the entire diagram with exact node labels in each connection.'}])
     except (httpx.HTTPError, ValueError, TypeError, KeyError) as exc:
-        raise HTTPException(502, f'Diagram generation failed: {exc}') from exc
+        raise HTTPException(502, 'Diagram generation service request failed.') from exc
 
 
 def clean(value: str) -> str:
@@ -695,11 +697,11 @@ async def llm_plan_detail(request: PlanRequest, before_model: Callable[[], None]
     ambiguous = ambiguous_fallback(request) if not request.pending_command and not request.revision_of else None
     if ambiguous:
         return ambiguous, "fallback", None
-    base = os.getenv("LLM_BASE_URL", "").rstrip("/")
-    key = os.getenv("LLM_API_KEY") or os.getenv("OPENROUTER_API_KEY", "")
-    model = os.getenv("LLM_MODEL", "")
-    openai_key = os.getenv("OPENAI_API_KEY", "")
-    agent_key = os.getenv("AGENTROUTER_API_KEY") or os.getenv("AgentRouter_API_KEY", "")
+    base = os.getenv("LLM_BASE_URL", "").strip().rstrip("/")
+    key = (os.getenv("LLM_API_KEY") or os.getenv("OPENROUTER_API_KEY", "")).strip()
+    model = os.getenv("LLM_MODEL", "").strip()
+    openai_key = os.getenv("OPENAI_API_KEY", "").strip()
+    agent_key = (os.getenv("AGENTROUTER_API_KEY") or os.getenv("AgentRouter_API_KEY", "")).strip()
     if not openai_key and not agent_key and (not base or not model):
         if request.revision_of:
             raise HTTPException(503, "Corrections require a configured AI planner.")
@@ -787,7 +789,7 @@ async def llm_plan_detail(request: PlanRequest, before_model: Callable[[], None]
                     if attempt: raise
                     messages.extend([{"role": "assistant", "content": content}, {"role": "user", "content": f"That plan failed validation: {exc}. Reinterpret the original command and return a corrected JSON plan using only the allowed action schema."}])
     except (httpx.HTTPError, KeyError, ValueError, TypeError) as exc:
-        raise HTTPException(502, f"Planner failed: {exc}") from exc
+        raise HTTPException(502, "Planner service request failed.") from exc
 
 
 async def llm_plan(request: PlanRequest) -> tuple[list[dict[str, Any]], str]:
@@ -906,7 +908,7 @@ async def plan(request: PlanRequest, user: dict = Depends(require_user)):
             try:
                 inferred = await suggest(request.text, request.nodes, app.state.planner_client if hasattr(app.state, 'planner_client') else None, request.last_command, [item.get('intentType') for item in request.containers if item.get('intentType')], (lambda: ai_quota(account)) if account else None)
             except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
-                raise HTTPException(502, f'Intent review failed: {exc}') from exc
+                raise HTTPException(502, 'Intent review service request failed.') from exc
             return {'actions': [], 'mode': inferred['mode'], 'intent_suggestion': inferred}
     return await planned_command(request, account)
 
@@ -941,7 +943,7 @@ async def transcribe(audio: UploadFile = File(...), key_terms: str | None = Form
     if len(raw) > 15_000_000: raise HTTPException(413, "Audio clip is too large.")
     if os.getenv("GNANI_MOCK_TRANSCRIPT"):
         return {"transcript": os.environ["GNANI_MOCK_TRANSCRIPT"], "mode": "mock"}
-    key = os.getenv("GNANI_API_KEY", "")
+    key = os.getenv("GNANI_API_KEY", "").strip()
     if not key: raise HTTPException(503, "GNANI_API_KEY is missing. Use text commands or set GNANI_MOCK_TRANSCRIPT for a demo.")
     try:
         process = await asyncio.create_subprocess_exec("ffmpeg", "-hide_banner", "-loglevel", "error", "-i", "pipe:0", "-ac", "1", "-ar", "16000", "-f", "wav", "pipe:1", stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
@@ -973,7 +975,7 @@ async def transcribe(audio: UploadFile = File(...), key_terms: str | None = Form
         return {"transcript": transcript, "mode": "gnani"}
     except (subprocess.CalledProcessError, FileNotFoundError, ValueError) as exc: raise HTTPException(422, f"Could not decode audio: {exc}") from exc
     except httpx.TimeoutException as exc: raise HTTPException(504, "Gnani timed out.") from exc
-    except (httpx.HTTPError, json.JSONDecodeError) as exc: raise HTTPException(502, f"Gnani request failed: {exc}") from exc
+    except (httpx.HTTPError, json.JSONDecodeError) as exc: raise HTTPException(502, "Speech service request failed.") from exc
 
 
 # Mount after API routes so the deployed frontend and voice relay share one origin.

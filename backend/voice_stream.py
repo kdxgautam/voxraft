@@ -124,7 +124,7 @@ async def voice_stream(websocket: WebSocket, user: dict = Depends(require_ws_use
         return
     slot, lease_token = reservation
     deadline = time.monotonic() + 300
-    key = os.getenv("GNANI_API_KEY", "")
+    key = os.getenv("GNANI_API_KEY", "").strip()
     if not key:
         await websocket.send_json({"type": "fallback", "message": "GNANI_API_KEY is missing."})
         await websocket.close()
@@ -192,7 +192,7 @@ async def voice_stream(websocket: WebSocket, user: dict = Depends(require_ws_use
                 if attempts >= 3:
                     await websocket.send_json({"type": "fallback", "message": "Realtime STT unavailable. Switching to automatic REST segmentation."})
                     break
-                await websocket.send_json({"type": "reconnecting", "attempt": attempts, "message": str(exc)[:120]})
+                await websocket.send_json({"type": "reconnecting", "attempt": attempts, "message": "Speech service connection failed."})
                 try:
                     await asyncio.wait_for(stopped.wait(), timeout=min(attempts, 3))
                 except asyncio.TimeoutError:

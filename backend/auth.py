@@ -34,7 +34,7 @@ def database_path() -> Path:
 
 
 def secret_key() -> str:
-    key = os.getenv('AUTH_SECRET_KEY', '')
+    key = os.getenv('AUTH_SECRET_KEY', '').strip()
     if not key and os.getenv('STATIC_DIR'):
         raise RuntimeError('AUTH_SECRET_KEY is required when serving the production frontend.')
     if key and len(key) < 32:
@@ -43,7 +43,7 @@ def secret_key() -> str:
 
 
 def connect(*, schema: bool = False) -> Any:
-    database_url = (os.getenv('DATABASE_URL_UNPOOLED') if schema else None) or os.getenv('DATABASE_URL')
+    database_url = ((os.getenv('DATABASE_URL_UNPOOLED') if schema else None) or os.getenv('DATABASE_URL') or '').strip()
     if database_url:
         return psycopg.connect(database_url, row_factory=dict_row)
     path = database_path()

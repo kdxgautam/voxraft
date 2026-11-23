@@ -4,6 +4,7 @@ import json
 import sys
 from pathlib import Path
 from fastapi import HTTPException, UploadFile
+import httpx
 import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import main
@@ -183,6 +184,28 @@ def test_invalid_model_plan_does_not_silently_run_local_parser(monkeypatch):
     try: asyncio.run(llm_plan(PlanRequest(text='Create a frontend and connect it to the backend')))
     except HTTPException as exc: assert exc.status_code == 502
     else: assert False, 'Invalid model actions must fail without changing the diagram'
+
+
+def test_planner_strips_secret_whitespace_and_redacts_transport_errors(monkeypatch):
+    monkeypatch.setenv('OPENAI_API_KEY', 'private-test-key\n')
+    calls = []
+    class Client:
+        def __init__(self, **kwargs): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): pass
+        async def post(self, *args, **kwargs):
+            calls.append(kwargs)
+            raise httpx.ConnectError(f"provider rejected {kwargs['headers']['Authorization']}")
+    monkeypatch.setattr('main.httpx.AsyncClient', Client)
+    try:
+        asyncio.run(llm_plan(PlanRequest(text='Create a frontend and connect it to the backend')))
+    except HTTPException as exc:
+        assert exc.status_code == 502
+        assert exc.detail == 'Planner service request failed.'
+        assert 'private-test-key' not in exc.detail
+    else:
+        assert False, 'Transport errors must fail safely'
+    assert calls[0]['headers']['Authorization'] == 'Bearer private-test-key'
 
 
 def test_clear_canvas_command():

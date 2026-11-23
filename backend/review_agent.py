@@ -156,14 +156,14 @@ def rules_review(request: ReviewRequest) -> dict[str, Any]:
 
 
 def model_available() -> bool:
-    return bool(os.getenv("OPENAI_API_KEY") or os.getenv("AGENTROUTER_API_KEY") or os.getenv("AgentRouter_API_KEY")
+    return bool((os.getenv("OPENAI_API_KEY") or os.getenv("AGENTROUTER_API_KEY") or os.getenv("AgentRouter_API_KEY") or "").strip()
                 or os.getenv("LLM_BASE_URL") and os.getenv("LLM_MODEL"))
 
 
 async def model_decision(messages: list[dict[str, str]], client: httpx.AsyncClient) -> dict[str, Any]:
-    openai_key = os.getenv("OPENAI_API_KEY", "")
-    agent_key = os.getenv("AGENTROUTER_API_KEY") or os.getenv("AgentRouter_API_KEY", "")
-    generic_key = os.getenv("LLM_API_KEY") or os.getenv("OPENROUTER_API_KEY", "")
+    openai_key = os.getenv("OPENAI_API_KEY", "").strip()
+    agent_key = (os.getenv("AGENTROUTER_API_KEY") or os.getenv("AgentRouter_API_KEY", "")).strip()
+    generic_key = (os.getenv("LLM_API_KEY") or os.getenv("OPENROUTER_API_KEY", "")).strip()
     payload: dict[str, Any] = {"temperature": 0, "max_tokens": 300, "messages": messages}
     if openai_key:
         url = f"{os.getenv('OPENAI_BASE_URL', 'https://api.openai.com/v1').rstrip('/')}/chat/completions"
