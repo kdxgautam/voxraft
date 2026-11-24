@@ -31,6 +31,21 @@ def test_limits_are_shared_in_database(tmp_path, monkeypatch):
     assert auth.reserve_voice('x')
 
 
+def test_daily_limits_survive_hourly_cleanup_and_reset(tmp_path, monkeypatch):
+    monkeypatch.setenv('BOLCANVAS_DB_PATH', str(tmp_path / 'limits.sqlite3'))
+    now = [1000]
+    monkeypatch.setattr(auth.time, 'time', lambda: now[0])
+    auth.init_db()
+    auth.check_rate_limit('daily:x', 2, 86400)
+    auth.check_rate_limit('daily:x', 2, 86400)
+    now[0] += 3601
+    auth.check_rate_limit('hourly:x', 1, 3600)
+    with pytest.raises(auth.HTTPException):
+        auth.check_rate_limit('daily:x', 2, 86400)
+    now[0] += 82800
+    auth.check_rate_limit('daily:x', 2, 86400)
+
+
 def test_body_limit_before_parsing(tmp_path, monkeypatch):
     monkeypatch.setenv('BOLCANVAS_DB_PATH', str(tmp_path / 'limits.sqlite3'))
     monkeypatch.setenv('AUTH_SECRET_KEY', 'test-secret-' * 8)
@@ -85,11 +100,25 @@ def test_local_plans_do_not_spend_model_quota(tmp_path, monkeypatch):
         complex_command = main.PlanRequest(text='Could you diagram the dependencies?', diagram_context={'type': 'architecture'})
         for _ in range(61):
             assert (await main.plan(local, user))['mode'] == 'fallback'
-        for _ in range(60):
+        for _ in range(20):
             assert (await main.plan(complex_command, user))['mode'] == 'llm'
         with pytest.raises(auth.HTTPException) as denied:
             await main.plan(complex_command, user)
         assert denied.value.status_code == 429
+        assert denied.value.detail == 'Daily AI limit reached. Try again in 24 hours.'
         assert (await main.plan(local, user))['mode'] == 'fallback'
 
     asyncio.run(check())
+
+
+def test_global_daily_ai_limit(tmp_path, monkeypatch):
+    import main
+
+    monkeypatch.setenv('BOLCANVAS_DB_PATH', str(tmp_path / 'limits.sqlite3'))
+    auth.init_db()
+    for index in range(200):
+        main.ai_quota({'id': f'user-{index}'})
+    with pytest.raises(auth.HTTPException) as denied:
+        main.ai_quota({'id': 'user-over-global-limit'})
+    assert denied.value.status_code == 429
+    assert denied.value.detail == "Voxraft has reached today's AI limit. Please try again later."

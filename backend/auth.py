@@ -24,6 +24,8 @@ COOKIE = 'bolcanvas_session'
 ISSUER = 'bolcanvas'
 AUDIENCE = 'bolcanvas-app'
 SESSION_SECONDS = 7 * 24 * 60 * 60
+VOICE_SESSION_SECONDS = 180
+PROJECT_LIMIT = 10
 _dev_secret = secrets.token_urlsafe(48)
 _passwords = PasswordHash.recommended()
 _dummy_hash = _passwords.hash('not-a-real-password')
@@ -119,10 +121,10 @@ def normalized_email(value: str) -> str:
     return email
 
 
-def check_rate_limit(key: str, limit: int, seconds: int) -> None:
+def check_rate_limit(key: str, limit: int, seconds: int, detail: str = 'Too many requests. Please try again later.') -> None:
     now = int(time.time())
     with closing(connect()) as db, db:
-        execute(db, 'DELETE FROM request_limits WHERE window_start < ?', (now - 3600,))
+        execute(db, 'DELETE FROM request_limits WHERE window_start < ?', (now - 86400,))
         execute(db, '''INSERT INTO request_limits (key, window_start, count) VALUES (?, ?, 1)
                       ON CONFLICT(key) DO UPDATE SET
                       count = CASE WHEN request_limits.window_start <= ? THEN 1 ELSE request_limits.count + 1 END,
@@ -130,7 +132,7 @@ def check_rate_limit(key: str, limit: int, seconds: int) -> None:
                 (key, now, now - seconds, now - seconds))
         count = execute(db, 'SELECT count FROM request_limits WHERE key = ?', (key,)).fetchone()['count']
     if count > limit:
-        raise HTTPException(429, 'Too many requests. Please try again later.')
+        raise HTTPException(429, detail)
 
 
 def reserve_voice(user_id: str) -> tuple[int, str] | None:
@@ -139,7 +141,7 @@ def reserve_voice(user_id: str) -> tuple[int, str] | None:
         for slot in range(2):
             result = execute(db, '''INSERT INTO voice_sessions (user_id, slot, token, expires_at) VALUES (?, ?, ?, ?)
                                 ON CONFLICT(user_id, slot) DO UPDATE SET token = excluded.token, expires_at = excluded.expires_at
-                                WHERE voice_sessions.expires_at < ?''', (user_id, slot, token, now + 300, now))
+                                WHERE voice_sessions.expires_at < ?''', (user_id, slot, token, now + VOICE_SESSION_SECONDS, now))
             if result.rowcount:
                 return slot, token
     return None
@@ -349,8 +351,8 @@ def create_project(body: dict, user: dict[str, str] = Depends(require_user)):
     project_id, updated = uuid.uuid4().hex, int(time.time())
     with closing(connect()) as db, db:
         result = execute(db, '''INSERT INTO diagram_projects (id, user_id, name, body, created_at, updated_at)
-                             SELECT ?, ?, ?, ?, ?, ? WHERE (SELECT count(*) FROM diagram_projects WHERE user_id = ?) < 50''',
-                         (project_id, user['id'], name.strip(), encoded, updated, updated, user['id']))
+                             SELECT ?, ?, ?, ?, ?, ? WHERE (SELECT count(*) FROM diagram_projects WHERE user_id = ?) < ?''',
+                         (project_id, user['id'], name.strip(), encoded, updated, updated, user['id'], PROJECT_LIMIT))
         if not result.rowcount:
             raise HTTPException(429, 'Diagram limit reached. Delete a diagram before creating another.')
     return {'id': project_id, 'name': name.strip(), 'updated_at': updated}

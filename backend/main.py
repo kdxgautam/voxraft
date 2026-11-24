@@ -105,6 +105,8 @@ async def health():
 
 
 def ai_quota(user: dict = Depends(require_user)):
+    check_rate_limit(f'ai-day:{user["id"]}', 20, 86400, 'Daily AI limit reached. Try again in 24 hours.')
+    check_rate_limit('ai-day:global', 200, 86400, 'Voxraft has reached today\'s AI limit. Please try again later.')
     check_rate_limit(f'ai:{user["id"]}', 60, 3600)
     check_rate_limit('ai:global', 300, 3600)
 

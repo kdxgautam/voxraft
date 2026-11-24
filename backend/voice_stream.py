@@ -14,7 +14,7 @@ from gnani.stt import (
     StreamProcessingEvent,
     StreamTranscriptEvent,
 )
-from auth import check_rate_limit, release_voice, require_ws_user, reserve_voice
+from auth import VOICE_SESSION_SECONDS, check_rate_limit, release_voice, require_ws_user, reserve_voice
 from fastapi import HTTPException
 
 router = APIRouter()
@@ -111,10 +111,11 @@ async def voice_stream(websocket: WebSocket, user: dict = Depends(require_ws_use
         return
     await websocket.accept()
     try:
+        check_rate_limit(f'voice-day:{user["id"]}', 5, 86400, "Daily voice limit reached. Try again in 24 hours.")
         check_rate_limit(f'voice-start:{user["id"]}', 10, 3600)
         check_rate_limit('voice-start:global', 60, 3600)
-    except HTTPException:
-        await websocket.send_json({"type": "limit", "message": "Voice session limit reached. Try again later."})
+    except HTTPException as exc:
+        await websocket.send_json({"type": "limit", "message": str(exc.detail)})
         await websocket.close()
         return
     reservation = reserve_voice(user['id'])
@@ -123,7 +124,7 @@ async def voice_stream(websocket: WebSocket, user: dict = Depends(require_ws_use
         await websocket.close()
         return
     slot, lease_token = reservation
-    deadline = time.monotonic() + 300
+    deadline = time.monotonic() + VOICE_SESSION_SECONDS
     key = os.getenv("GNANI_API_KEY", "").strip()
     if not key:
         await websocket.send_json({"type": "fallback", "message": "GNANI_API_KEY is missing."})
@@ -206,6 +207,8 @@ async def voice_stream(websocket: WebSocket, user: dict = Depends(require_ws_use
                         except asyncio.CancelledError:
                             pass
                 await stream.close()
+        if not stopped.is_set() and time.monotonic() >= deadline:
+            await websocket.send_json({"type": "limit", "message": "Voice sessions are limited to 3 minutes."})
     finally:
         release_voice(user['id'], slot, lease_token)
         stopped.set()

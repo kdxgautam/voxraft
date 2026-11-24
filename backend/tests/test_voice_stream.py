@@ -66,13 +66,16 @@ def test_stream_reconnects_and_recovers(monkeypatch):
             yield transcript()
             await asyncio.sleep(60)
     monkeypatch.setattr(relay,'GnaniSTTStreamClient',Stream)
-    monkeypatch.setattr(relay,'check_rate_limit',lambda *args: None)
+    rate_limits=[]
+    monkeypatch.setattr(relay,'check_rate_limit',lambda *args: rate_limits.append(args))
     monkeypatch.setattr(relay,'reserve_voice',lambda *args: (0,'test-lease'))
     monkeypatch.setattr(relay,'release_voice',lambda *args: None)
     socket=Socket()
     asyncio.run(asyncio.wait_for(relay.voice_stream(socket,{'id':'test'}),timeout=5))
     assert [item['type'] for item in socket.messages] == ['reconnecting','ready','completed']
     assert len(calls)==2
+    assert rate_limits[0][:3] == ('voice-day:test',5,86400)
+    assert relay.VOICE_SESSION_SECONDS == 180
     assert all(stream.options['language_code']=='en-IN' and stream.options['format']=='transcribe' for stream in calls)
     assert all(stream.options['keywords']==['Payments API','Redis'] for stream in calls)
 

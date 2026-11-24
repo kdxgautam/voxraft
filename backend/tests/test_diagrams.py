@@ -66,11 +66,14 @@ def test_legacy_migration_and_private_diagrams(tmp_path, monkeypatch):
     auth.delete_diagram(one, first)
     with pytest.raises(HTTPException):
         auth.get_diagram(one, first)
-    for index in range(13):
+    for index in range(10):
         auth.create_project({'name': f'Extra {index}', 'project': changed}, first)
-    assert len(auth.list_projects(0, first)['projects']) == 12
-    assert auth.list_projects(0, first)['has_more'] is True
-    assert len(auth.list_projects(12, first)['projects']) == 1
+    assert len(auth.list_projects(0, first)['projects']) == 10
+    assert auth.list_projects(0, first)['has_more'] is False
+    with pytest.raises(HTTPException) as limit:
+        auth.create_project({'name': 'One too many', 'project': changed}, first)
+    assert limit.value.status_code == 429
+    assert 'Diagram limit reached' in limit.value.detail
     auth.put_project({'project': blank}, {'id': 'legacy'})
     assert auth.get_diagram('legacy', {'id': 'legacy'})['project'] == blank
 
