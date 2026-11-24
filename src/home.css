@@ -36,11 +36,14 @@
 /* Voxraft's own canvas palette replaces the reference site's warm backdrop. */
 .bc-home:has(.bc-demo-section){background:linear-gradient(#e9f4f8 0 100svh,#f6fafc 100svh)}
 .bc-hero{position:relative;isolation:isolate;background:linear-gradient(180deg,#f1f8fa 0%,#e9f4f8 56%,#dcecf2 100%);color:#203346}
+.bc-pointer-glow{display:none}
 .bc-hero:before{content:'';position:absolute;z-index:-1;inset:48% 0 0;background-image:radial-gradient(#8eb4c1 1px,transparent 1px);background-size:22px 22px;mask-image:linear-gradient(to bottom,transparent,#000 45%,#000 85%,transparent);opacity:.32;pointer-events:none}
 .bc-header{background:#f7fbfc;border-color:#bed5de;box-shadow:0 8px 30px #456c7b0b}.bc-header .bc-navigation a,.bc-header .bc-signin{color:#435969}
 .bc-header .bc-button,.bc-hero .bc-button{background:#b9eed5;border-color:#255d4e;color:#174a39}.bc-header .bc-button:hover,.bc-hero .bc-button:hover{background:#a8e8c9;color:#174a39}
 .bc-hero-copy>p{color:#526979}.bc-hero-copy>small,.bc-watch-link{color:#637e89!important}.bc-hero-paper,.bc-hero-paper:after{background:#fbfdfc;border-color:#708e9a}.bc-hero-paper:before{background:#e3f1f4;border-color:#91afba}.bc-paper-label{color:#527481}.bc-story-pause{background:#f1f8fa;border-color:#a9c7d1;color:#486b79!important}
 @media(prefers-reduced-motion:reduce){.bc-hero:before{opacity:.18}}
+@media(hover:hover) and (pointer:fine){.bc-pointer-glow{position:absolute;z-index:0;top:0;left:0;display:block;width:360px;height:360px;border-radius:50%;background:radial-gradient(circle,#b9eed585 0,#9fd8e34f 34%,transparent 70%);opacity:0;pointer-events:none;transition:opacity 180ms var(--ease-out);will-change:transform,opacity}.bc-hero>*:not(.bc-pointer-glow){position:relative;z-index:1}.bc-hero-story{transition:transform 180ms var(--ease-out);will-change:transform}}
+@media(prefers-reduced-motion:reduce){.bc-pointer-glow{display:none!important}.bc-hero-story{transform:none!important;will-change:auto}}
 
 /* The demo sits over a quiet, scroll-responsive diagram field. */
 .bc-home .bc-demo-section{background:#152a36;color:#f1f8fa}

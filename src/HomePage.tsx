@@ -53,6 +53,7 @@ export default function HomePage({user,link}:Props){
     </header>
     <main id="home-main">
       <section className="bc-hero">
+        <span className="bc-pointer-glow" aria-hidden="true"/>
         <div className="bc-hero-copy"><h1>Speak your mind.<br/><em>See it take shape.</em></h1><p>Turn your words into editable diagrams.</p><a className="bc-button" href={target} onClick={link(target)}>{user?'Open your workspace':'Start creating'}</a><small>Right in your browser. Nothing to install.</small></div>
         <HeroStory motion={motion}/>
         <a className="bc-watch-link" href="#product-demo">See it in action <ChevronDown size={15}/></a>

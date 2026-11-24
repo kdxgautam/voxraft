@@ -6,6 +6,12 @@ export function useReducedMotion(){
   return reduced;
 }
 
+export function pointerCoordinates(clientX:number,clientY:number,left:number,top:number,width:number,height:number){
+  const x=Math.max(0,Math.min(width,clientX-left));
+  const y=Math.max(0,Math.min(height,clientY-top));
+  return {x,y,dx:(x/Math.max(width,1)-.5)*2,dy:(y/Math.max(height,1)-.5)*2};
+}
+
 export function useHomeMotion(enabled:boolean){
   const root=useRef<HTMLDivElement>(null);
   useEffect(()=>{
@@ -17,6 +23,9 @@ export function useHomeMotion(enabled:boolean){
     const ribbon=element.querySelector<HTMLElement>('.bc-thought-ribbon>div');
     const demo=element.querySelector<HTMLElement>('.bc-demo-entrance');
     const demoSection=element.querySelector<HTMLElement>('.bc-demo-section');
+    const hero=element.querySelector<HTMLElement>('.bc-hero');
+    const pointerGlow=element.querySelector<HTMLElement>('.bc-pointer-glow');
+    const heroStory=element.querySelector<HTMLElement>('.bc-hero-story');
     const skyLeft=element.querySelector<SVGSVGElement>('.bc-demo-sky-left');
     const skyRight=element.querySelector<SVGSVGElement>('.bc-demo-sky-right');
     const tracers=Array.from(element.querySelectorAll<SVGCircleElement>('.bc-demo-tracer')).flatMap(dot=>{
@@ -33,6 +42,8 @@ export function useHomeMotion(enabled:boolean){
     const activity=new IntersectionObserver(entries=>entries.forEach(entry=>entry.target.classList.toggle('bc-in-view',entry.isIntersecting)),{threshold:.15});
     panels.forEach(item=>activity.observe(item));
     let frame=0;
+    let pointerFrame=0;
+    let pointerEvent:PointerEvent|null=null;
     const update=()=>{
       frame=0;
       const height=window.innerHeight;
@@ -55,8 +66,22 @@ export function useHomeMotion(enabled:boolean){
       }
     };
     const schedule=()=>{if(!frame&&!document.hidden)frame=requestAnimationFrame(update);};
+    const updatePointer=()=>{
+      pointerFrame=0;
+      if(!hero||!pointerGlow||!pointerEvent)return;
+      const rect=hero.getBoundingClientRect();
+      const {x,y,dx,dy}=pointerCoordinates(pointerEvent.clientX,pointerEvent.clientY,rect.left,rect.top,rect.width,rect.height);
+      pointerGlow.style.opacity='1';
+      pointerGlow.style.transform=`translate3d(${x-180}px,${y-180}px,0)`;
+      if(heroStory)heroStory.style.transform=`perspective(1100px) translate3d(${dx*8}px,${dy*5}px,0) rotateX(${-dy*1.2}deg) rotateY(${dx*1.8}deg)`;
+    };
+    const trackPointer=(event:PointerEvent)=>{pointerEvent=event;if(!pointerFrame)pointerFrame=requestAnimationFrame(updatePointer);};
+    const resetPointer=()=>{pointerEvent=null;if(pointerGlow)pointerGlow.style.opacity='0';if(heroStory)heroStory.style.removeProperty('transform');};
+    const finePointer=window.matchMedia('(hover:hover) and (pointer:fine)').matches;
+    if(finePointer)hero?.addEventListener('pointermove',trackPointer,{passive:true});
+    if(finePointer)hero?.addEventListener('pointerleave',resetPointer);
     window.addEventListener('scroll',schedule,{passive:true});window.addEventListener('resize',schedule);document.addEventListener('visibilitychange',schedule);update();
-    return()=>{observer.disconnect();activity.disconnect();cancelAnimationFrame(frame);window.removeEventListener('scroll',schedule);window.removeEventListener('resize',schedule);document.removeEventListener('visibilitychange',schedule);reveal.forEach(item=>item.classList.remove('bc-reveal','bc-revealed'));panels.forEach(item=>{item.style.removeProperty('transform');item.classList.remove('bc-in-view');});[ribbon,demo,progress,skyLeft,skyRight].forEach(item=>item?.style.removeProperty('transform'));tracers.forEach(({dot})=>dot.removeAttribute('transform'));};
+    return()=>{observer.disconnect();activity.disconnect();cancelAnimationFrame(frame);cancelAnimationFrame(pointerFrame);hero?.removeEventListener('pointermove',trackPointer);hero?.removeEventListener('pointerleave',resetPointer);window.removeEventListener('scroll',schedule);window.removeEventListener('resize',schedule);document.removeEventListener('visibilitychange',schedule);reveal.forEach(item=>item.classList.remove('bc-reveal','bc-revealed'));panels.forEach(item=>{item.style.removeProperty('transform');item.classList.remove('bc-in-view');});[ribbon,demo,progress,skyLeft,skyRight,pointerGlow,heroStory].forEach(item=>item?.style.removeProperty('transform'));pointerGlow?.style.removeProperty('opacity');tracers.forEach(({dot})=>dot.removeAttribute('transform'));};
   },[enabled]);
   return root;
 }
